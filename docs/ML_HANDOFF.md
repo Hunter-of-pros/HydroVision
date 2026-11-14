@@ -98,3 +98,4 @@ pytest tests/ -v
 > **Note on `tests/test_api_shapes.py`**:  
 > The tests currently have `@pytest.mark.xfail(raises=NotImplementedError)`.  
 > As you implement each function in `hydrovision_ml/api.py`, simply remove the `@pytest.mark.xfail` decorator from its corresponding test in `tests/test_api_shapes.py` to activate strict shape and bound assertions.
+

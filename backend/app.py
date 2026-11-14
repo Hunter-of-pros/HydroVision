@@ -125,3 +125,19 @@ def post_compare(request: schemas.CompareRequest) -> Dict[str, Any]:
             detail=f"Comparison simulation failed: {e}",
         )
 
+
+@app.get(
+    "/results",
+    response_model=schemas.EvalSummaryResponse,
+    summary="Retrieve empirical evaluation and ablation benchmark summary",
+    tags=["Evaluation"],
+)
+def get_results() -> Dict[str, Any]:
+    """Serve empirical evaluation benchmark results.
+
+    Returns results/eval_summary.json if available; otherwise falls back to
+    results/eval_summary.mock.json with is_mock=True. Returns 404 if neither exists.
+    """
+    return services.get_eval_results()
+
+

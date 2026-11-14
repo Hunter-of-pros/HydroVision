@@ -1,0 +1,58 @@
+{
+  "generated_at": "2026-11-14T12:00:00Z",
+  "hardware": "Simulated Benchmark Runner (Mock Engine v1.0)",
+  "is_mock": true,
+  "test_set": {
+    "n_runs": 50,
+    "rain_range_mmhr": [20.0, 150.0]
+  },
+  "ablation": [
+    {
+      "name": "A plain",
+      "mae_m": 0.082,
+      "rmse_m": 0.124,
+      "wet_iou": 0.621,
+      "mass_residual_max": 0.184
+    },
+    {
+      "name": "B mass loss",
+      "mae_m": 0.051,
+      "rmse_m": 0.078,
+      "wet_iou": 0.743,
+      "mass_residual_max": 0.038
+    },
+    {
+      "name": "C mass loss + rollout training",
+      "mae_m": 0.024,
+      "rmse_m": 0.039,
+      "wet_iou": 0.865,
+      "mass_residual_max": 0.012
+    }
+  ],
+  "error_vs_horizon": {
+    "steps": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120],
+    "mae_m": [0.005, 0.008, 0.012, 0.015, 0.018, 0.021, 0.023, 0.024, 0.025, 0.025, 0.026, 0.026]
+  },
+  "speedup_scaling": [
+    {
+      "grid": "32x32",
+      "solver_s": 0.38,
+      "surrogate_ms": 12.0
+    },
+    {
+      "grid": "64x64",
+      "solver_s": 1.52,
+      "surrogate_ms": 38.5
+    },
+    {
+      "grid": "128x128",
+      "solver_s": 8.40,
+      "surrogate_ms": 112.0
+    },
+    {
+      "grid": "256x256",
+      "solver_s": 46.20,
+      "surrogate_ms": 340.0
+    }
+  ]
+}

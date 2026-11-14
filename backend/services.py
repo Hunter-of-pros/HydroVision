@@ -8,8 +8,11 @@ Owner: Backend (Vikas)
 
 from __future__ import annotations
 
+import json
 import os
+from pathlib import Path
 from typing import Any, Dict, List
+from fastapi import HTTPException
 
 # Environment mode: "mock" (default) or "real"
 def get_hydro_mode() -> str:
@@ -187,4 +190,34 @@ def compare(params: Dict[str, Any]) -> Dict[str, Any]:
         "metrics": metrics,
         "model_name": surr_res.get("model_name", "mock-v0"),
     }
+
+
+def get_eval_results() -> Dict[str, Any]:
+    """Retrieve empirical evaluation benchmark results.
+
+    Serves results/eval_summary.json if it exists; otherwise serves results/eval_summary.mock.json
+    with is_mock=True. Returns HTTP 404 only if neither exists.
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    real_path = repo_root / "results" / "eval_summary.json"
+    mock_path = repo_root / "results" / "eval_summary.mock.json"
+
+    if real_path.exists():
+        try:
+            with open(real_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass  # Fallback to mock file on corrupt real file
+
+    if mock_path.exists():
+        try:
+            with open(mock_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                data["is_mock"] = True
+                return data
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read mock evaluation results: {e}")
+
+    raise HTTPException(status_code=404, detail="Evaluation summary results not found.")
+
 

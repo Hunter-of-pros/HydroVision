@@ -218,3 +218,40 @@ class PresetItem(BaseModel):
 class PresetsResponse(BaseModel):
     presets: List[PresetItem]
 
+
+class TestSetConfig(BaseModel):
+    n_runs: int = Field(50, description="Number of randomized evaluation runs.")
+    rain_range_mmhr: List[float] = Field([20.0, 150.0], description="Precipitation range [min, max] in mm/hr.")
+
+
+class AblationItem(BaseModel):
+    name: str = Field(..., description="Ablation configuration name.")
+    mae_m: float = Field(..., description="Mean absolute depth error across test set in meters.")
+    rmse_m: float = Field(..., description="Root mean squared error in meters.")
+    wet_iou: float = Field(..., description="Inundation extent Intersection-over-Union.")
+    mass_residual_max: float = Field(..., description="Maximum mass conservation residual.")
+
+
+class ErrorVsHorizon(BaseModel):
+    steps: List[int] = Field(..., description="Time step indices along horizon.")
+    mae_m: List[float] = Field(..., description="Per-step MAE across test set in meters.")
+
+
+class SpeedupScalingItem(BaseModel):
+    grid: str = Field(..., description="Grid dimension resolution.")
+    solver_s: float = Field(..., description="SWE solver execution time in seconds.")
+    surrogate_ms: float = Field(..., description="Surrogate inference latency in milliseconds.")
+
+
+class EvalSummaryResponse(BaseModel):
+    """Empirical evaluation and ablation benchmark summary conforming to docs/eval_summary.schema.json."""
+
+    generated_at: str = Field(..., description="ISO 8601 timestamp of benchmark run.")
+    hardware: str = Field(..., description="Compute environment specification.")
+    is_mock: bool = Field(..., description="True if results are mock / simulated.")
+    test_set: TestSetConfig
+    ablation: List[AblationItem]
+    error_vs_horizon: ErrorVsHorizon
+    speedup_scaling: List[SpeedupScalingItem]
+
+

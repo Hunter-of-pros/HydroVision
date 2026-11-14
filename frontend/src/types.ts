@@ -126,4 +126,37 @@ export interface CompareResult {
   model_name?: string;
 }
 
+export interface AblationItem {
+  name: string;
+  mae_m: number;
+  rmse_m: number;
+  wet_iou: number;
+  mass_residual_max: number;
+}
+
+export interface ErrorVsHorizonData {
+  steps: number[];
+  mae_m: number[];
+}
+
+export interface SpeedupScalingItem {
+  grid: string;
+  solver_s: number;
+  surrogate_ms: number;
+}
+
+export interface EvalSummaryData {
+  generated_at: string;
+  hardware: string;
+  is_mock: boolean;
+  test_set: {
+    n_runs: number;
+    rain_range_mmhr: [number, number];
+  };
+  ablation: AblationItem[];
+  error_vs_horizon: ErrorVsHorizonData;
+  speedup_scaling: SpeedupScalingItem[];
+}
+
+
 

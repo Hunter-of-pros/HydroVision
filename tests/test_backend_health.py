@@ -112,3 +112,59 @@ def test_compare_endpoint_mock_execution():
     assert "peak_extent_iou" in data["metrics"]
     assert data["model_name"] == "mock-v0"
 
+
+def test_results_endpoint_mock_fallback():
+    response = client.get("/results")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_mock"] is True
+    assert "hardware" in data
+    assert "ablation" in data
+    assert len(data["ablation"]) >= 3
+    assert "error_vs_horizon" in data
+    assert "speedup_scaling" in data
+    assert "test_set" in data
+
+    ablation_names = [a["name"] for a in data["ablation"]]
+    assert "A plain" in ablation_names
+    assert "B mass loss" in ablation_names
+    assert "C mass loss + rollout training" in ablation_names
+
+
+def test_results_endpoint_real_file_precedence(tmp_path, monkeypatch):
+    from pathlib import Path
+    import json
+    import backend.services as services
+
+    # Create dummy real results
+    real_data = {
+        "generated_at": "2026-11-14T15:00:00Z",
+        "hardware": "Mock RTX 4090 Test",
+        "is_mock": False,
+        "test_set": {"n_runs": 100, "rain_range_mmhr": [20.0, 150.0]},
+        "ablation": [
+            {"name": "A plain", "mae_m": 0.08, "rmse_m": 0.12, "wet_iou": 0.6, "mass_residual_max": 0.15},
+            {"name": "B mass loss", "mae_m": 0.05, "rmse_m": 0.07, "wet_iou": 0.7, "mass_residual_max": 0.03},
+            {"name": "C mass loss + rollout training", "mae_m": 0.02, "rmse_m": 0.03, "wet_iou": 0.88, "mass_residual_max": 0.01},
+        ],
+        "error_vs_horizon": {"steps": [10, 120], "mae_m": [0.005, 0.02]},
+        "speedup_scaling": [{"grid": "64x64", "solver_s": 1.5, "surrogate_ms": 38.0}],
+    }
+    
+    # Write real file to real path temporarily
+    real_path = Path("results/eval_summary.json")
+    real_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(real_path, "w", encoding="utf-8") as f:
+        json.dump(real_data, f)
+
+    try:
+        response = client.get("/results")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_mock"] is False
+        assert data["hardware"] == "Mock RTX 4090 Test"
+    finally:
+        if real_path.exists():
+            real_path.unlink()
+
+

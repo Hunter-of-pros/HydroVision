@@ -1,6 +1,7 @@
 import {
   CompareResult,
   ConfigData,
+  EvalSummaryData,
   ForecastParams,
   ForecastResult,
   HealthStatus,
@@ -60,4 +61,9 @@ export async function runCompare(params: ForecastParams): Promise<CompareResult>
     body: JSON.stringify(params),
   });
 }
+
+export async function fetchResults(): Promise<EvalSummaryData> {
+  return fetchJson<EvalSummaryData>('/results');
+}
+
 

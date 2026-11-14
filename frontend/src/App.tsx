@@ -7,6 +7,7 @@ import { MapViewer } from './components/MapViewer';
 import { ComparisonView } from './components/ComparisonView';
 import { PointProbe } from './components/PointProbe';
 import { HazardMetrics } from './components/HazardMetrics';
+import { EvaluationTab } from './components/EvaluationTab';
 import {
   fetchHealth,
   fetchTerrain,
@@ -36,6 +37,7 @@ const DEFAULT_PARAMS: ForecastParams = {
 export const App: React.FC = () => {
   const [health, setHealth] = useState<HealthStatus | null>(null);
   const [isMock, setIsMock] = useState<boolean>(true);
+  const [activeTab, setActiveTab] = useState<'simulation' | 'evaluation'>('simulation');
   const [terrain, setTerrain] = useState<TerrainData | null>(null);
   const [presets, setPresets] = useState<PresetItem[]>([]);
 
@@ -169,6 +171,8 @@ export const App: React.FC = () => {
         health={health}
         inferenceTimeMs={forecastResult?.inference_time_ms}
         modelName={forecastResult?.model_name}
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
@@ -188,75 +192,81 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {/* Hazard Risk Summary Bar */}
-        <HazardMetrics depthFrame={activeDepthFrame} />
-
-        {/* Comparison View or Main Map View */}
-        {compareResult ? (
-          <ComparisonView
-            compareData={compareResult}
-            terrain={terrain}
-            currentFrame={currentFrame}
-            onClose={() => setCompareResult(null)}
-            isMock={isMock}
-          />
+        {activeTab === 'evaluation' ? (
+          <EvaluationTab presets={presets} isGlobalMock={isMock} />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Map Viewer & Probe */}
-            <div className="lg:col-span-7 flex flex-col gap-4">
-              <MapViewer
+          <>
+            {/* Hazard Risk Summary Bar */}
+            <HazardMetrics depthFrame={activeDepthFrame} />
+
+            {/* Comparison View or Main Map View */}
+            {compareResult ? (
+              <ComparisonView
+                compareData={compareResult}
                 terrain={terrain}
-                depthFrame={activeDepthFrame}
-                title="⚡ Live Neural Surrogate Forecast Overlay"
-                selectedProbeCell={selectedProbeCell}
-                onSelectProbeCell={setSelectedProbeCell}
+                currentFrame={currentFrame}
+                onClose={() => setCompareResult(null)}
                 isMock={isMock}
               />
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Column: Map Viewer & Probe */}
+                <div className="lg:col-span-7 flex flex-col gap-4">
+                  <MapViewer
+                    terrain={terrain}
+                    depthFrame={activeDepthFrame}
+                    title="⚡ Live Neural Surrogate Forecast Overlay"
+                    selectedProbeCell={selectedProbeCell}
+                    onSelectProbeCell={setSelectedProbeCell}
+                    isMock={isMock}
+                  />
 
-              <PointProbe
-                selectedCell={selectedProbeCell}
-                depthTimeseries={depthTimeseries}
-                currentFrame={currentFrame}
-                totalFrames={totalFrames}
-                onClear={() => setSelectedProbeCell(null)}
-              />
-            </div>
+                  <PointProbe
+                    selectedCell={selectedProbeCell}
+                    depthTimeseries={depthTimeseries}
+                    currentFrame={currentFrame}
+                    totalFrames={totalFrames}
+                    onClear={() => setSelectedProbeCell(null)}
+                  />
+                </div>
 
-            {/* Right Column: Controls & Hyetograph */}
-            <div className="lg:col-span-5 flex flex-col gap-4">
-              <Controls
-                params={params}
-                onChange={handleParamsChange}
-                onRunForecast={handleRunForecast}
-                onRunCompare={handleRunCompare}
-                presets={presets}
-                onSelectPreset={handleSelectPreset}
-                isForecasting={isForecasting}
-                isComparing={isComparing}
-              />
+                {/* Right Column: Controls & Hyetograph */}
+                <div className="lg:col-span-5 flex flex-col gap-4">
+                  <Controls
+                    params={params}
+                    onChange={handleParamsChange}
+                    onRunForecast={handleRunForecast}
+                    onRunCompare={handleRunCompare}
+                    presets={presets}
+                    onSelectPreset={handleSelectPreset}
+                    isForecasting={isForecasting}
+                    isComparing={isComparing}
+                  />
 
-              <Hyetograph
-                rainSeriesMmhr={forecastResult?.rain_series_mmhr || []}
-                currentFrame={currentFrame}
-                totalFrames={totalFrames}
-              />
-            </div>
-          </div>
+                  <Hyetograph
+                    rainSeriesMmhr={forecastResult?.rain_series_mmhr || []}
+                    currentFrame={currentFrame}
+                    totalFrames={totalFrames}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Global Timeline Scrubber */}
+            <Timeline
+              currentFrame={currentFrame}
+              totalFrames={totalFrames}
+              timesS={forecastResult?.times_s || []}
+              isPlaying={isPlaying}
+              onTogglePlay={() => setIsPlaying(!isPlaying)}
+              onSeek={(frame) => setCurrentFrame(frame)}
+              speedMultiplier={speedMultiplier}
+              onChangeSpeed={(spd) => setSpeedMultiplier(spd)}
+              peakDepthM={forecastResult?.peak_depth_m}
+              floodedAreaM2={forecastResult?.flooded_area_m2}
+            />
+          </>
         )}
-
-        {/* Global Timeline Scrubber */}
-        <Timeline
-          currentFrame={currentFrame}
-          totalFrames={totalFrames}
-          timesS={forecastResult?.times_s || []}
-          isPlaying={isPlaying}
-          onTogglePlay={() => setIsPlaying(!isPlaying)}
-          onSeek={(frame) => setCurrentFrame(frame)}
-          speedMultiplier={speedMultiplier}
-          onChangeSpeed={(spd) => setSpeedMultiplier(spd)}
-          peakDepthM={forecastResult?.peak_depth_m}
-          floodedAreaM2={forecastResult?.flooded_area_m2}
-        />
       </main>
 
       <footer className="border-t border-slate-900 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500">
