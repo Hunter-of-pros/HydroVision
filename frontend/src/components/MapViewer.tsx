@@ -19,6 +19,8 @@ import { TerrainData } from '../types';
 interface MapViewerProps {
   terrain: TerrainData | null;
   depthFrame: number[][] | null; // 64x64 depth in meters
+  nextDepthFrame?: number[][] | null;
+  frameProgress?: number;
   title?: string;
   isSolverComparison?: boolean;
   selectedProbeCell?: { row: number; col: number } | null;
@@ -30,6 +32,8 @@ interface MapViewerProps {
 export const MapViewer: React.FC<MapViewerProps> = ({
   terrain,
   depthFrame,
+  nextDepthFrame,
+  frameProgress = 0,
   title = 'Urban Flood Inundation Map',
   isSolverComparison = false,
   selectedProbeCell,
@@ -38,6 +42,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   isLoading = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const cachedHillshadeRef = useRef<HTMLCanvasElement | null>(null);
   const [hoverCell, setHoverCell] = useState<{
     row: number;
     col: number;
@@ -46,6 +51,8 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   } | null>(null);
 
   const [showGrid, setShowGrid] = useState<boolean>(false);
+  const [showFlowVectors, setShowFlowVectors] = useState<boolean>(true);
+  const [animTick, setAnimTick] = useState<number>(0);
   const [basemapMode, setBasemapMode] = useState<'streets' | 'satellite' | 'topo'>('streets');
   const [viewAngle, setViewAngle] = useState<'2d' | '3d'>('2d');
   const show3DBuildings = true;
@@ -108,6 +115,83 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       maxElev: terrain.max_elevation,
     };
   }, [terrain]);
+
+  // Compute terrain hillshade once when terrain loads for crisp 3D relief under water
+  useEffect(() => {
+    if (!terrain) return;
+    const tRows = terrain.shape[0];
+    const tCols = terrain.shape[1];
+    const hsCanvas = document.createElement('canvas');
+    hsCanvas.width = tCols;
+    hsCanvas.height = tRows;
+    const hsCtx = hsCanvas.getContext('2d');
+    if (!hsCtx) return;
+
+    const imgData = hsCtx.createImageData(tCols, tRows);
+    const elev = terrain.elevation;
+    const dx = terrain.dx_m || 60.9;
+    // NW illumination (315 deg azimuth, 45 deg altitude)
+    const sunAz = (315 * Math.PI) / 180;
+    const sunAlt = (45 * Math.PI) / 180;
+    const sinAlt = Math.sin(sunAlt);
+    const cosAlt = Math.cos(sunAlt);
+
+    for (let r = 0; r < tRows; r++) {
+      for (let c = 0; c < tCols; c++) {
+        const rPrev = Math.max(0, r - 1);
+        const rNext = Math.min(tRows - 1, r + 1);
+        const cPrev = Math.max(0, c - 1);
+        const cNext = Math.min(tCols - 1, c + 1);
+
+        const dzdx = ((elev[r]?.[cNext] ?? 0) - (elev[r]?.[cPrev] ?? 0)) / (2 * dx);
+        const dzdy = ((elev[rNext]?.[c] ?? 0) - (elev[rPrev]?.[c] ?? 0)) / (2 * dx);
+
+        const slope = Math.atan(Math.sqrt(dzdx * dzdx + dzdy * dzdy));
+        const aspect = Math.atan2(dzdy, -dzdx);
+
+        let shade = sinAlt * Math.cos(slope) + cosAlt * Math.sin(slope) * Math.cos(sunAz - aspect);
+        shade = Math.max(0, Math.min(1, shade));
+        const val = Math.round(shade * 255);
+
+        const idx = (r * tCols + c) * 4;
+        imgData.data[idx] = val;
+        imgData.data[idx + 1] = val;
+        imgData.data[idx + 2] = val;
+        imgData.data[idx + 3] = 255;
+      }
+    }
+    hsCtx.putImageData(imgData, 0, 0);
+    cachedHillshadeRef.current = hsCanvas;
+  }, [terrain]);
+
+  // Subtle continuous animation loop for indicative flow vectors
+  useEffect(() => {
+    if (!showFlowVectors) return;
+    const timer = setInterval(() => {
+      setAnimTick((prev) => (prev + 1) % 100);
+    }, 60);
+    return () => clearInterval(timer);
+  }, [showFlowVectors]);
+
+  // Interpolated depth frame supporting continuous 60fps temporal blending
+  const effectiveDepthFrame = useMemo(() => {
+    if (!depthFrame) return null;
+    if (!nextDepthFrame || frameProgress <= 0 || frameProgress >= 1) {
+      return depthFrame;
+    }
+    const p = Math.min(1.0, Math.max(0.0, frameProgress));
+    const blended: number[][] = [];
+    for (let r = 0; r < rows; r++) {
+      const row: number[] = [];
+      for (let c = 0; c < cols; c++) {
+        const d0 = depthFrame[r]?.[c] ?? 0;
+        const d1 = nextDepthFrame[r]?.[c] ?? d0;
+        row.push((1 - p) * d0 + p * d1);
+      }
+      blended.push(row);
+    }
+    return blended;
+  }, [depthFrame, nextDepthFrame, frameProgress, rows, cols]);
 
   // Urban 3D building footprints for Marathahalli-Bellandur corridor
   const urbanBuildings = useMemo(() => {
@@ -175,86 +259,173 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       }
     }
 
-    // 2. Realistic Fluid Flood Inundation Layer
-    // Create an offscreen buffer for smooth fluid edge blending
-    const waterCanvas = document.createElement('canvas');
-    waterCanvas.width = width;
-    waterCanvas.height = height;
-    const waterCtx = waterCanvas.getContext('2d');
+    // Composite hillshade relief under water so terrain topography reads clearly
+    if (cachedHillshadeRef.current) {
+      ctx.save();
+      ctx.globalAlpha = 0.22;
+      ctx.drawImage(cachedHillshadeRef.current, 0, 0, width, height);
+      ctx.restore();
+    }
 
-    if (waterCtx && depthFrame) {
-      // Draw smooth fluid depth patches with radial gradient blending
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const depth = depthFrame[r]?.[c] ?? 0;
-          if (depth >= 0.05) {
-            const centerX = (c + 0.5) * cellW;
-            const centerY = (r + 0.5) * cellH;
-            const radius = Math.max(cellW, cellH) * 0.95;
+    // 2. Realistic Fluid Flood Inundation Layer via Bilinear Upsampling & Square-Root Color Scale
+    if (effectiveDepthFrame) {
+      const upW = 128;
+      const upH = 128;
+      const upCanvas = document.createElement('canvas');
+      upCanvas.width = upW;
+      upCanvas.height = upH;
+      const upCtx = upCanvas.getContext('2d');
 
-            // Physical Depth Color Grading:
-            // 0.05 - 0.20m: Translucent turquoise / cyan (shallow street runoff)
-            // 0.20 - 0.60m: Vibrant azure blue (curb-overtopping street flow)
-            // 0.60 - 1.20m: Deep royal cobalt (severe car-submerging deluge)
-            // > 1.20m:      Rich oceanic indigo (deep retention basin & lake storage)
-            const normDepth = Math.max(0, Math.min(1, depth / 2.0));
+      if (upCtx) {
+        const imgData = upCtx.createImageData(upW, upH);
+        const data = imgData.data;
 
-            let rCol: number, gCol: number, bCol: number, alpha: number;
-            if (normDepth < 0.15) {
-              rCol = 14;
-              gCol = 165;
-              bCol = 233;
-              alpha = 0.72;
-            } else if (normDepth < 0.45) {
-              rCol = 2;
-              gCol = 132;
-              bCol = 199;
-              alpha = 0.82;
-            } else if (normDepth < 0.75) {
-              rCol = 30;
-              gCol = 64;
-              bCol = 175;
-              alpha = 0.88;
-            } else {
-              rCol = 30;
-              gCol = 41;
-              bCol = 120;
-              alpha = 0.94;
+        for (let y = 0; y < upH; y++) {
+          const gy = (y / (upH - 1)) * (rows - 1);
+          const r0 = Math.floor(gy);
+          const r1 = Math.min(rows - 1, r0 + 1);
+          const fy = gy - r0;
+
+          for (let x = 0; x < upW; x++) {
+            const gx = (x / (upW - 1)) * (cols - 1);
+            const c0 = Math.floor(gx);
+            const c1 = Math.min(cols - 1, c0 + 1);
+            const fx = gx - c0;
+
+            const d00 = effectiveDepthFrame[r0]?.[c0] ?? 0;
+            const d01 = effectiveDepthFrame[r0]?.[c1] ?? 0;
+            const d10 = effectiveDepthFrame[r1]?.[c0] ?? 0;
+            const d11 = effectiveDepthFrame[r1]?.[c1] ?? 0;
+
+            // Bilinear interpolation across 4 grid cell corners
+            const d =
+              (1 - fx) * (1 - fy) * d00 +
+              fx * (1 - fy) * d01 +
+              (1 - fx) * fy * d10 +
+              fx * fy * d11;
+
+            const idx = (y * upW + x) * 4;
+
+            // Depths under 1 cm (0.01 m) remain transparent
+            if (d >= 0.01) {
+              // Non-linear square-root perceptual depth scaling: 0 at 1cm, 1.0 at 2.0m depth
+              const t = Math.min(1.0, Math.sqrt((d - 0.01) / 1.99));
+
+              let r: number, g: number, b: number, a: number;
+              if (t < 0.25) {
+                // 1cm - 15cm: Sheet flow (translucent sky-cyan)
+                const s = t / 0.25;
+                r = Math.round(56 * (1 - s) + 14 * s);
+                g = Math.round(189 * (1 - s) + 165 * s);
+                b = Math.round(248 * (1 - s) + 233 * s);
+                a = Math.round((0.35 + 0.35 * s) * 255);
+              } else if (t < 0.55) {
+                // 15cm - 60cm: Street curb flow (vibrant azure)
+                const s = (t - 0.25) / 0.3;
+                r = Math.round(14 * (1 - s) + 2 * s);
+                g = Math.round(165 * (1 - s) + 132 * s);
+                b = Math.round(233 * (1 - s) + 199 * s);
+                a = Math.round((0.70 + 0.15 * s) * 255);
+              } else if (t < 0.85) {
+                // 60cm - 1.4m: Deep car-submerging flow (royal cobalt)
+                const s = (t - 0.55) / 0.3;
+                r = Math.round(2 * (1 - s) + 30 * s);
+                g = Math.round(132 * (1 - s) + 64 * s);
+                b = Math.round(199 * (1 - s) + 175 * s);
+                a = Math.round((0.85 + 0.08 * s) * 255);
+              } else {
+                // > 1.4m: Oceanic indigo retention storage
+                const s = (t - 0.85) / 0.15;
+                r = Math.round(30 * (1 - s) + 15 * s);
+                g = Math.round(64 * (1 - s) + 23 * s);
+                b = Math.round(175 * (1 - s) + 72 * s);
+                a = Math.round((0.93 + 0.05 * s) * 255);
+              }
+
+              data[idx] = r;
+              data[idx + 1] = g;
+              data[idx + 2] = b;
+              data[idx + 3] = a;
             }
+          }
+        }
+        upCtx.putImageData(imgData, 0, 0);
 
-            const grad = waterCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
-            grad.addColorStop(0, `rgba(${rCol}, ${gCol}, ${bCol}, ${alpha})`);
-            grad.addColorStop(0.75, `rgba(${rCol}, ${gCol}, ${bCol}, ${alpha * 0.85})`);
-            grad.addColorStop(1, `rgba(${rCol}, ${gCol}, ${bCol}, 0.2)`);
+        // Composite smooth upsampled fluid onto main canvas with browser filtering
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(upCanvas, 0, 0, width, height);
 
-            waterCtx.fillStyle = grad;
-            waterCtx.beginPath();
-            waterCtx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-            waterCtx.fill();
+        // Specular water sheen overlay for realistic liquid appearance
+        ctx.globalCompositeOperation = 'screen';
+        const sheenGrad = ctx.createLinearGradient(0, 0, width, height);
+        sheenGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
+        sheenGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.05)');
+        sheenGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+        ctx.fillStyle = sheenGrad;
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
+      }
+    }
 
-            // Shoreline highlight around perimeter of wet zones
-            if (depth < 0.15) {
-              waterCtx.strokeStyle = 'rgba(224, 242, 254, 0.4)';
-              waterCtx.lineWidth = 1;
-              waterCtx.stroke();
+    // 3. Indicative Flow Direction Streamlines (derived from water surface gradient eta = z + h)
+    if (showFlowVectors && effectiveDepthFrame && terrain) {
+      ctx.save();
+      const elev = terrain.elevation;
+      const dx = terrain.dx_m || 60.9;
+      const offsetFrac = (animTick % 20) / 20.0;
+
+      // Sample every 4th cell for clean, readable vector spacing
+      for (let r = 2; r < rows - 2; r += 4) {
+        for (let c = 2; c < cols - 2; c += 4) {
+          const h = effectiveDepthFrame[r]?.[c] ?? 0;
+          if (h >= 0.02) {
+            const etaW = (elev[r]?.[c - 1] ?? 0) + (effectiveDepthFrame[r]?.[c - 1] ?? 0);
+            const etaE = (elev[r]?.[c + 1] ?? 0) + (effectiveDepthFrame[r]?.[c + 1] ?? 0);
+            const etaN = (elev[r - 1]?.[c] ?? 0) + (effectiveDepthFrame[r - 1]?.[c] ?? 0);
+            const etaS = (elev[r + 1]?.[c] ?? 0) + (effectiveDepthFrame[r + 1]?.[c] ?? 0);
+
+            const dEtadx = (etaE - etaW) / (2 * dx);
+            const dEtady = (etaS - etaN) / (2 * dx);
+            const gradMag = Math.sqrt(dEtadx * dEtadx + dEtady * dEtady);
+
+            if (gradMag > 0.0002) {
+              const angle = Math.atan2(-dEtady, -dEtadx); // Downhill flow angle
+              const centerX = (c + 0.5) * cellW;
+              const centerY = (r + 0.5) * cellH;
+
+              const arrowLen = Math.min(cellW * 1.5, Math.max(cellW * 0.7, gradMag * 4000));
+              const startX = centerX - Math.cos(angle) * (arrowLen * 0.5) + Math.cos(angle) * (offsetFrac * 6);
+              const startY = centerY - Math.sin(angle) * (arrowLen * 0.5) + Math.sin(angle) * (offsetFrac * 6);
+              const endX = startX + Math.cos(angle) * arrowLen;
+              const endY = startY + Math.sin(angle) * arrowLen;
+
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+              ctx.lineWidth = 1.2;
+              ctx.beginPath();
+              ctx.moveTo(startX, startY);
+              ctx.lineTo(endX, endY);
+              ctx.stroke();
+
+              const tipSize = 3;
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.moveTo(endX, endY);
+              ctx.lineTo(
+                endX - tipSize * Math.cos(angle - Math.PI / 6),
+                endY - tipSize * Math.sin(angle - Math.PI / 6)
+              );
+              ctx.lineTo(
+                endX - tipSize * Math.cos(angle + Math.PI / 6),
+                endY - tipSize * Math.sin(angle + Math.PI / 6)
+              );
+              ctx.closePath();
+              ctx.fill();
             }
           }
         }
       }
-
-      // Composite realistic fluid layer over basemap
-      ctx.save();
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.drawImage(waterCanvas, 0, 0);
-
-      // Specular water sheen overlay for realistic liquid appearance
-      ctx.globalCompositeOperation = 'screen';
-      const sheenGrad = ctx.createLinearGradient(0, 0, width, height);
-      sheenGrad.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
-      sheenGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.04)');
-      sheenGrad.addColorStop(1, 'rgba(255, 255, 255, 0.02)');
-      ctx.fillStyle = sheenGrad;
-      ctx.fillRect(0, 0, width, height);
       ctx.restore();
     }
 
@@ -554,6 +725,20 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             <span className="hidden sm:inline">Ground Level</span>
           </button>
 
+          {/* Indicative Flow Vectors Toggle */}
+          <button
+            onClick={() => setShowFlowVectors(!showFlowVectors)}
+            className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 text-xs ${
+              showFlowVectors
+                ? 'bg-cyan-600/20 text-cyan-300 border border-cyan-500/40'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Toggle Indicative Flow Direction (Water Surface Gradient)"
+          >
+            <Navigation className="w-3 h-3 rotate-45 text-cyan-400" />
+            <span className="hidden sm:inline">Flow Vectors</span>
+          </button>
+
           <button
             onClick={() => setShowGrid(!showGrid)}
             className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 transition ${
@@ -638,6 +823,14 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           </div>
         )}
 
+        {/* Indicative Flow Direction Overlay Pill */}
+        {showFlowVectors && (
+          <div className="absolute top-3 right-3 bg-slate-900/85 backdrop-blur border border-slate-700/60 rounded-lg px-2 py-0.5 text-[10px] text-cyan-300 font-mono shadow pointer-events-none z-10 flex items-center gap-1">
+            <Navigation className="w-2.5 h-2.5 rotate-45 text-cyan-400" />
+            <span>Indicative flow direction</span>
+          </div>
+        )}
+
         {/* Selected Probe Badge with Street View trigger */}
         {selectedProbeCell ? (
           <div
@@ -688,20 +881,20 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         )}
       </div>
 
-      {/* Colormap Legend Scale */}
+      {/* Colormap Legend Scale (Square-Root Non-Linear Perceptual Ramp) */}
       <div className="flex flex-col gap-1.5 pt-1">
         <div className="h-2.5 w-full rounded-full overflow-hidden flex shadow-inner">
-          <div className="w-[10%] bg-slate-800" title="Dry terrain (< 0.05m)" />
-          <div className="w-[25%] bg-gradient-to-r from-sky-400 to-cyan-500" title="0.05m - 0.5m" />
-          <div className="w-[35%] bg-gradient-to-r from-cyan-500 to-blue-600" title="0.5m - 1.2m" />
-          <div className="w-[30%] bg-gradient-to-r from-blue-600 to-indigo-900" title="1.2m - 2.0m+" />
+          <div className="w-[8%] bg-slate-800" title="Dry pavement (< 0.01m / 1cm)" />
+          <div className="w-[22%] bg-gradient-to-r from-sky-400 to-cyan-500" title="1cm - 15cm (Thin sheet flow)" />
+          <div className="w-[35%] bg-gradient-to-r from-cyan-500 to-blue-600" title="15cm - 60cm (Street curb overflow)" />
+          <div className="w-[35%] bg-gradient-to-r from-blue-600 to-indigo-950" title="60cm - 2.0m+ (Deep deluge)" />
         </div>
         <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-          <span>Dry (&lt;0.05m)</span>
-          <span>0.20m (Puddle)</span>
-          <span>0.60m (Street Flood)</span>
-          <span>1.20m (Severe)</span>
-          <span>2.0m+ (Deluge)</span>
+          <span>Dry (&lt;1cm)</span>
+          <span>5cm (Sheet flow)</span>
+          <span>15cm (Curb breached)</span>
+          <span>60cm (Vehicle hazard)</span>
+          <span>2.0m+ (Deep deluge)</span>
         </div>
       </div>
 

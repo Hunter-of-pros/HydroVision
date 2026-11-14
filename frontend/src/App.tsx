@@ -381,6 +381,10 @@ export const App: React.FC = () => {
     forecastResult?.depth_frames[currentFrame] ||
     forecastResult?.depth_frames[0] ||
     null;
+  const nextFrameIndex = Math.min(totalFrames - 1, currentFrame + 1);
+  const nextDepthFrame =
+    forecastResult?.depth_frames[nextFrameIndex] ||
+    activeDepthFrame;
 
   const depthTimeseries = useMemo(() => {
     if (!selectedProbeCell || !forecastResult?.depth_frames) return [];
@@ -487,6 +491,7 @@ export const App: React.FC = () => {
                   <MapViewer
                     terrain={terrain}
                     depthFrame={activeDepthFrame}
+                    nextDepthFrame={nextDepthFrame}
                     title="⚡ Live Neural Surrogate Forecast Overlay"
                     selectedProbeCell={selectedProbeCell}
                     onSelectProbeCell={setSelectedProbeCell}
