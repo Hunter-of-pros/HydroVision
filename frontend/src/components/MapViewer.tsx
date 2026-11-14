@@ -786,25 +786,25 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             </div>
 
             {/* Dynamic Street Cross-Section Cutaway Simulation */}
-            <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 flex flex-col gap-3 relative overflow-hidden text-white">
-              <div className="flex items-center justify-between text-xs font-semibold border-b border-slate-800 pb-2">
-                <span className="flex items-center gap-1.5 text-sky-400">
-                  <Waves className="w-4 h-4" />
-                  Dynamic Hydraulic Cutaway (Water Level vs. Vehicles &amp; Pedestrians)
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col gap-3 relative overflow-hidden shadow-sm">
+              <div className="flex items-center justify-between text-xs font-bold border-b border-slate-200 pb-2.5">
+                <span className="flex items-center gap-2 text-slate-800">
+                  <Waves className="w-4 h-4 text-sky-600" />
+                  <span>Dynamic Hydraulic Cutaway (Water Level vs. Vehicles &amp; Pedestrians)</span>
                 </span>
                 <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-tight ${
                     activeStreetCell.depth >= 1.0
-                      ? 'bg-rose-950 text-rose-300 border border-rose-500/50'
+                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
                       : activeStreetCell.depth >= 0.6
-                      ? 'bg-red-950 text-red-300 border border-red-500/50'
+                      ? 'bg-red-100 text-red-800 border border-red-300'
                       : activeStreetCell.depth >= 0.3
-                      ? 'bg-orange-950 text-orange-300 border border-orange-500/50'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
                       : activeStreetCell.depth >= 0.15
-                      ? 'bg-amber-950 text-amber-300 border border-amber-500/50'
+                      ? 'bg-sky-100 text-sky-800 border border-sky-300'
                       : activeStreetCell.depth >= 0.05
-                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/50'
-                      : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                      ? 'bg-cyan-100 text-cyan-800 border border-cyan-300'
+                      : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                   }`}
                 >
                   {activeStreetCell.depth >= 1.0
@@ -821,93 +821,120 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 </span>
               </div>
 
-              {/* SVG Urban Street Cross-Section */}
-              <div className="relative h-48 w-full bg-gradient-to-b from-sky-950/60 to-slate-950 rounded-lg overflow-hidden border border-slate-800/80">
+              {/* SVG Urban Street Cross-Section Graphic */}
+              <div className="relative h-56 w-full bg-gradient-to-b from-sky-50 via-sky-50/40 to-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-inner">
                 {/* Background Urban Skylines */}
-                <svg className="absolute inset-0 w-full h-full opacity-15" preserveAspectRatio="none">
-                  <rect x="5%" y="45%" width="12%" height="55%" fill="#38bdf8" />
-                  <rect x="20%" y="30%" width="15%" height="70%" fill="#38bdf8" />
-                  <rect x="40%" y="50%" width="10%" height="50%" fill="#38bdf8" />
-                  <rect x="55%" y="35%" width="16%" height="65%" fill="#38bdf8" />
-                  <rect x="75%" y="40%" width="14%" height="60%" fill="#38bdf8" />
+                <svg className="absolute inset-0 w-full h-full opacity-30" preserveAspectRatio="none">
+                  <rect x="5%" y="40%" width="12%" height="60%" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="0.5" />
+                  <rect x="20%" y="25%" width="15%" height="75%" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="0.5" />
+                  <rect x="40%" y="45%" width="10%" height="55%" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="0.5" />
+                  <rect x="55%" y="30%" width="16%" height="70%" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="0.5" />
+                  <rect x="75%" y="38%" width="14%" height="62%" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="0.5" />
                 </svg>
 
+                {/* Horizontal Guide Lines across Graphic */}
+                <div className="absolute inset-x-0 bottom-[142px] border-b border-dashed border-rose-300/60 pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-[98px] border-b border-dashed border-orange-300/60 pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-[65px] border-b border-dashed border-amber-300/60 pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-[48px] border-b border-dashed border-sky-300/60 pointer-events-none" />
+
                 {/* Sidewalk & Concrete Curb (Left side, exactly 15cm scale curb) */}
-                <div className="absolute bottom-0 left-0 w-32 h-14 bg-slate-700 border-t-2 border-r-2 border-slate-500 z-10 flex flex-col items-center justify-center shadow-lg">
-                  <span className="text-[10px] text-slate-200 font-mono font-bold">Sidewalk</span>
-                  <span className="text-[9px] text-cyan-300 font-mono">15cm Curb</span>
+                <div className="absolute bottom-0 left-0 w-32 h-14 bg-gradient-to-b from-slate-200 to-slate-300 border-t-2 border-r-2 border-slate-400 z-10 flex flex-col items-center justify-center shadow-xs">
+                  <span className="text-[10px] text-slate-800 font-mono font-bold">Sidewalk</span>
+                  <span className="text-[9px] text-sky-800 font-mono font-semibold">15cm Curb</span>
                 </div>
 
                 {/* Asphalt Road Surface */}
-                <div className="absolute bottom-0 left-32 right-0 h-8 bg-slate-950 border-t-2 border-slate-600 flex items-center justify-around z-10">
-                  <div className="w-10 h-1 bg-amber-400 rounded-full" />
-                  <div className="w-10 h-1 bg-amber-400 rounded-full" />
-                  <div className="w-10 h-1 bg-amber-400 rounded-full" />
-                  <div className="w-10 h-1 bg-amber-400 rounded-full" />
+                <div className="absolute bottom-0 left-32 right-0 h-8 bg-gradient-to-b from-slate-700 to-slate-800 border-t-2 border-slate-900 flex items-center justify-around z-10 shadow-inner">
+                  <div className="w-10 h-1 bg-amber-400 rounded-full shadow-xs" />
+                  <div className="w-10 h-1 bg-amber-400 rounded-full shadow-xs" />
+                  <div className="w-10 h-1 bg-amber-400 rounded-full shadow-xs" />
+                  <div className="w-10 h-1 bg-amber-400 rounded-full shadow-xs" />
                 </div>
 
                 {/* Vehicle Silhouette (sitting on asphalt road) */}
-                <div className="absolute bottom-8 left-52 z-15 w-44 h-24 pointer-events-none">
-                  <svg viewBox="0 0 160 80" className="w-full h-full drop-shadow-lg">
+                <div className="absolute bottom-8 left-48 z-15 w-44 h-24 pointer-events-none">
+                  <svg viewBox="0 0 160 80" className="w-full h-full drop-shadow-md">
                     {/* Car Chassis */}
                     <path
                       d="M 15 52 L 25 36 L 56 26 L 105 26 L 126 36 L 148 44 L 152 60 L 138 60 A 12 12 0 0 1 114 60 L 52 60 A 12 12 0 0 1 28 60 L 10 60 Z"
                       fill="#0284c7"
+                      stroke="#0369a1"
+                      strokeWidth="1.5"
                     />
                     {/* Windows */}
-                    <path d="M 58 29 L 80 29 L 80 46 L 39 46 Z" fill="#bae6fd" opacity="0.85" />
-                    <path d="M 85 29 L 104 29 L 121 46 L 85 46 Z" fill="#bae6fd" opacity="0.85" />
+                    <path d="M 58 29 L 80 29 L 80 46 L 39 46 Z" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="1" />
+                    <path d="M 85 29 L 104 29 L 121 46 L 85 46 Z" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="1" />
+                    {/* Headlight & Taillight */}
+                    <path d="M 148 48 L 152 52 L 148 54 Z" fill="#fef08a" />
+                    <path d="M 15 48 L 12 52 L 15 54 Z" fill="#ef4444" />
                     {/* Wheels */}
-                    <circle cx="40" cy="60" r="12" fill="#0f172a" stroke="#64748b" strokeWidth="2.5" />
-                    <circle cx="126" cy="60" r="12" fill="#0f172a" stroke="#64748b" strokeWidth="2.5" />
-                    <circle cx="40" cy="60" r="4.5" fill="#94a3b8" />
-                    <circle cx="126" cy="60" r="4.5" fill="#94a3b8" />
+                    <circle cx="40" cy="60" r="12" fill="#1e293b" stroke="#475569" strokeWidth="2" />
+                    <circle cx="126" cy="60" r="12" fill="#1e293b" stroke="#475569" strokeWidth="2" />
+                    <circle cx="40" cy="60" r="4.5" fill="#cbd5e1" />
+                    <circle cx="126" cy="60" r="4.5" fill="#cbd5e1" />
                   </svg>
                 </div>
 
                 {/* Dynamic Water Layer */}
                 {activeStreetCell.depth > 0 && (
                   <div
-                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-700/85 via-sky-500/75 to-cyan-300/60 z-20 transition-all duration-300 border-t-2 border-cyan-200"
+                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-sky-600/70 via-sky-400/55 to-cyan-300/40 z-20 transition-all duration-300 border-t-2 border-cyan-400 backdrop-blur-[0.5px]"
                     style={{
                       height: `${Math.min(
-                        175,
+                        180,
                         Math.max(8, (activeStreetCell.depth / 1.0) * 110 + 32)
                       )}px`,
                     }}
                   >
                     {/* Surface ripple */}
-                    <div className="w-full h-1 bg-white/40 animate-pulse" />
-                    <div className="px-3 pt-1 flex justify-between items-center text-[11px] font-mono font-bold text-white drop-shadow">
-                      <span>Simulated Water: {(activeStreetCell.depth * 100).toFixed(1)} cm</span>
-                      <span>h = {activeStreetCell.depth.toFixed(3)} m</span>
+                    <div className="w-full h-1 bg-white/70 animate-pulse" />
+                    <div className="px-3 pt-1.5 flex justify-between items-center text-[11px] font-mono font-bold text-sky-950">
+                      <span className="bg-white/90 backdrop-blur px-2 py-0.5 rounded-full border border-sky-300 shadow-2xs">
+                        Simulated Water: {(activeStreetCell.depth * 100).toFixed(1)} cm
+                      </span>
+                      <span className="bg-white/90 backdrop-blur px-2 py-0.5 rounded-full border border-sky-300 shadow-2xs">
+                        h = {activeStreetCell.depth.toFixed(3)} m
+                      </span>
                     </div>
                   </div>
                 )}
 
                 {/* Water Height Reference Markers on Right Edge */}
-                <div className="absolute right-3 bottom-8 top-3 flex flex-col justify-between text-[10px] font-mono text-slate-400 border-l border-dashed border-slate-600 pl-2 z-30 pointer-events-none">
-                  <span className="text-rose-400 font-bold">100cm (Roof)</span>
-                  <span className="text-orange-400 font-bold">60cm (Intake)</span>
-                  <span className="text-amber-400 font-bold">30cm (Exhaust)</span>
-                  <span className="text-sky-400 font-bold">15cm (Sidewalk)</span>
-                  <span className="text-slate-500 font-bold">0cm (Road)</span>
+                <div className="absolute right-2.5 bottom-8 top-3 flex flex-col justify-between text-[10px] font-mono border-l-2 border-dashed border-slate-300 pl-2 z-30 pointer-events-none">
+                  <span className="text-rose-700 font-bold bg-white/95 px-1.5 py-0.5 rounded border border-rose-200 shadow-2xs">100cm (Roof)</span>
+                  <span className="text-red-700 font-bold bg-white/95 px-1.5 py-0.5 rounded border border-red-200 shadow-2xs">60cm (Intake)</span>
+                  <span className="text-amber-700 font-bold bg-white/95 px-1.5 py-0.5 rounded border border-amber-200 shadow-2xs">30cm (Exhaust)</span>
+                  <span className="text-sky-700 font-bold bg-white/95 px-1.5 py-0.5 rounded border border-sky-200 shadow-2xs">15cm (Sidewalk)</span>
+                  <span className="text-slate-600 font-bold bg-white/95 px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">0cm (Road)</span>
                 </div>
               </div>
 
               {/* Dynamic Physical Guidance Message */}
-              <div className="text-xs text-slate-300 flex items-start gap-2.5 bg-slate-950/80 p-3 rounded-lg border border-slate-800">
+              <div
+                className={`text-xs flex items-start gap-2.5 p-3 rounded-xl border transition shadow-2xs ${
+                  activeStreetCell.depth >= 0.6
+                    ? 'bg-rose-50 border-rose-200 text-rose-950'
+                    : activeStreetCell.depth >= 0.3
+                    ? 'bg-amber-50 border-amber-200 text-amber-950'
+                    : activeStreetCell.depth >= 0.15
+                    ? 'bg-sky-50 border-sky-200 text-sky-950'
+                    : 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                }`}
+              >
                 <AlertTriangle
                   className={`w-4 h-4 shrink-0 mt-0.5 ${
-                    activeStreetCell.depth >= 0.3
-                      ? 'text-rose-400'
+                    activeStreetCell.depth >= 0.6
+                      ? 'text-rose-600'
+                      : activeStreetCell.depth >= 0.3
+                      ? 'text-amber-600'
                       : activeStreetCell.depth >= 0.15
-                      ? 'text-amber-400'
-                      : 'text-sky-400'
+                      ? 'text-sky-600'
+                      : 'text-emerald-600'
                   }`}
                 />
                 <div>
-                  <span className="font-bold text-white">
+                  <span className="font-bold">
                     {activeStreetCell.depth >= 0.6
                       ? 'Engine Air Intake Submerged (Catastrophic Failure): '
                       : activeStreetCell.depth >= 0.3
@@ -916,15 +943,17 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                       ? 'Sidewalk Curb Breached (Pedestrian & Travel Hazard): '
                       : 'Street Traversible: '}
                   </span>
-                  {activeStreetCell.depth >= 1.0
-                    ? 'Water level exceeds 100 cm (roof level). Vehicles completely submerged. Severe life-safety emergency; evacuation directive active.'
-                    : activeStreetCell.depth >= 0.6
-                    ? 'Water level exceeds 60 cm (air intake height). Water enters engine air intake causing immediate hydraulic lock (catastrophic engine failure). Street impassable to all standard vehicles.'
-                    : activeStreetCell.depth >= 0.3
-                    ? 'Water level exceeds 30 cm (average vehicle exhaust height). Backpressure enters exhaust tailpipes causing engines to flood and stall.'
-                    : activeStreetCell.depth >= 0.15
-                    ? 'Water exceeds 15 cm (raised concrete sidewalk curb). Walking on sidewalks becomes hazardous; high hydroplaning risk for two-wheelers and sedans.'
-                    : 'Water depth is beneath the 15 cm sidewalk curb. Street traffic can proceed with reduced speed.'}
+                  <span className="opacity-90">
+                    {activeStreetCell.depth >= 1.0
+                      ? 'Water level exceeds 100 cm (roof level). Vehicles completely submerged. Severe life-safety emergency; evacuation directive active.'
+                      : activeStreetCell.depth >= 0.6
+                      ? 'Water level exceeds 60 cm (air intake height). Water enters engine air intake causing immediate hydraulic lock (catastrophic engine failure). Street impassable to all standard vehicles.'
+                      : activeStreetCell.depth >= 0.3
+                      ? 'Water level exceeds 30 cm (average vehicle exhaust height). Backpressure enters exhaust tailpipes causing engines to flood and stall.'
+                      : activeStreetCell.depth >= 0.15
+                      ? 'Water exceeds 15 cm (raised concrete sidewalk curb). Walking on sidewalks becomes hazardous; high hydroplaning risk for two-wheelers and sedans.'
+                      : 'Water depth is beneath the 15 cm sidewalk curb. Street traffic can proceed with reduced speed.'}
+                  </span>
                 </div>
               </div>
             </div>
