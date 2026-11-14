@@ -6,7 +6,7 @@ This guide describes how to export the generated hydrodynamic dataset from the l
 
 ## 1. Exporting and Zipping Local Dataset
 
-The dataset generated on the real Copernicus GLO-30 Marathahalli DEM resides at `C:\hydrovision_data\data` (~426 MB uncompressed).
+The dataset generated on the real Copernicus GLO-30 Marathahalli DEM resides at `C:\hydrovision_data\data` (~814 MB uncompressed, float32).
 
 ### Option A: Using PowerShell (Built-in)
 Run the following in PowerShell:
@@ -18,7 +18,7 @@ Compress-Archive -Path "C:\hydrovision_data\data\*" -DestinationPath "$HOME\Down
 ```bash
 python -c "import shutil; shutil.make_archive('hydrovision_data', 'zip', r'C:\hydrovision_data\data')"
 ```
-This produces `hydrovision_data.zip` (~140-180 MB compressed).
+This produces `hydrovision_data.zip` (~250-320 MB compressed).
 
 ---
 
@@ -113,25 +113,25 @@ The dataset structure in `/content/data/`:
 /content/data/
 ├── metadata.json
 ├── train/
-│   ├── depth.npy        [280, 121, 64, 64] (float16)
+│   ├── depth.npy        [280, 121, 64, 64] (float32)
 │   ├── rain.npy         [280, 120]         (float32)
 │   ├── drain_m3.npy     [280, 120]         (float32)
 │   ├── params.npy       [280, 4]           (float32)
 │   └── params.json
 ├── val/
-│   ├── depth.npy        [60, 121, 64, 64]  (float16)
+│   ├── depth.npy        [60, 121, 64, 64]  (float32)
 │   ├── rain.npy         [60, 120]          (float32)
 │   ├── drain_m3.npy     [60, 120]          (float32)
 │   ├── params.npy       [60, 4]            (float32)
 │   └── params.json
 ├── test/
-│   ├── depth.npy        [60, 121, 64, 64]  (float16)
+│   ├── depth.npy        [60, 121, 64, 64]  (float32)
 │   ├── rain.npy         [60, 120]          (float32)
 │   ├── drain_m3.npy     [60, 120]          (float32)
 │   ├── params.npy       [60, 4]            (float32)
 │   └── params.json
 └── extrapolation/
-    ├── depth.npy        [30, 121, 64, 64]  (float16)
+    ├── depth.npy        [30, 121, 64, 64]  (float32)
     ├── rain.npy         [30, 120]          (float32)
     ├── drain_m3.npy     [30, 120]          (float32)
     ├── params.npy       [30, 4]            (float32)

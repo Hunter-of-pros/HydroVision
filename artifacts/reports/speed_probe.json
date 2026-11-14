@@ -1,0 +1,53 @@
+{
+  "model": "BundledUNet",
+  "parameters": 288155,
+  "input_channels": 12,
+  "output_channels": 5,
+  "bundling_k": 5,
+  "hardware": "Intel Core i9-12900H (CPU)",
+  "selected_threads": 12,
+  "thread_comparison_forward_b8_ms": {
+    "4": 26.93,
+    "8": 22.5,
+    "12": 22.3
+  },
+  "forward_latency_ms": {
+    "batch_1": 4.41,
+    "batch_8": 20.67,
+    "batch_32": 85.34
+  },
+  "train_step_latency_ms": {
+    "batch_16": 153.21,
+    "batch_32": 311.36
+  },
+  "rollout_120_step": {
+    "solver_baseline_s": 0.267,
+    "single_b1_calculated_s": 0.1058,
+    "single_b1_measured_s": 0.1311,
+    "single_b1_speedup": 2.04,
+    "unbundled_120_passes_calculated_s": 0.529,
+    "batched_b8_measured_per_sc_s": 0.0712,
+    "batched_b8_speedup": 3.75,
+    "batched_b32_calculated_per_sc_s": 0.064,
+    "batched_b32_speedup": 4.17
+  },
+  "training_epoch_estimates": {
+    "full_sliding_windows": {
+      "samples": 32480,
+      "batch_size": 32,
+      "steps": 1015,
+      "one_epoch_time_s": 316.0,
+      "one_epoch_time_min": 5.27,
+      "total_30_epochs_min": 158.0,
+      "total_30_epochs_hours": 2.63
+    },
+    "subsampled_25pct_windows": {
+      "samples": 8120,
+      "batch_size": 32,
+      "steps": 253,
+      "one_epoch_time_s": 78.8,
+      "one_epoch_time_min": 1.31,
+      "total_30_epochs_min": 39.4
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "scenarios_analyzed": 30,
+  "budget_verification": {
+    "per_step_residual_rel_rain": {
+      "mean": 4.804522297977614e-05,
+      "max": 0.00856893831193772,
+      "status": "FAIL"
+    },
+    "window5_residual_rel_rain": {
+      "mean": 4.1220935000263034e-05,
+      "max": 0.01097074382649117,
+      "status": "FAIL"
+    }
+  },
+  "formula_drainage_evaluation": {
+    "per_step_error_rel_drain": {
+      "mean": 0.0062482713571300275,
+      "max": 0.06855522414342688
+    },
+    "per_step_error_rel_total_rain": {
+      "mean": 5.21646553153086e-06,
+      "max": 8.142069438531574e-05
+    },
+    "window5_error_rel_total_rain": {
+      "mean": 2.638913459913815e-05,
+      "max": 0.0003774773286445031,
+      "under_2_percent": true
+    }
+  },
+  "recommended_mass_loss_version": "formula",
+  "recommendation_rationale": "Formula estimate is accurate within 2% of total scenario rain volume."
+}

@@ -10,6 +10,7 @@
     "horizon_steps": 120
   },
   "wet_threshold_m": 0.05,
+  "data_dir": "C:\\hydrovision_data\\data",
   "hazard_thresholds": {
     "source": "ILLUSTRATIVE, not an official standard",
     "wet_m": 0.05,

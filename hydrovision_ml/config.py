@@ -46,6 +46,10 @@ NUM_FRAMES: int = HORIZON_STEPS + 1  # t=0 through t=HORIZON_STEPS * DT_S
 # Hydrological threshold
 WET_THRESHOLD_M: float = float(CONFIG["wet_threshold_m"])
 
+# Default dataset storage path
+import os
+DATA_DIR: Path = Path(os.getenv("HYDRO_DATA_DIR", CONFIG.get("data_dir", r"C:\hydrovision_data\data")))
+
 # Contract metadata
 CONTRACT_VERSION: str = str(CONFIG["contract_version"])
 

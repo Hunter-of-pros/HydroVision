@@ -113,16 +113,17 @@ def _simulate_single_scenario_worker(task: Tuple[int, Dict[str, Any], np.ndarray
     """
     idx, sc, dem, cell_size_m, dt_s, shard_path = task
 
-    # Check if shard already exists (resumable)
+    # Check if shard already exists (resumable with float32 check)
     if os.path.isfile(shard_path) and os.path.getsize(shard_path) > 1000:
         try:
             with np.load(shard_path) as data:
-                return {
-                    "idx": idx,
-                    "shard_path": shard_path,
-                    "solve_time_s": float(data.get("solve_time_s", 0.0)),
-                    "cached": True,
-                }
+                if data["depth"].dtype == np.float32:
+                    return {
+                        "idx": idx,
+                        "shard_path": shard_path,
+                        "solve_time_s": float(data.get("solve_time_s", 0.0)),
+                        "cached": True,
+                    }
         except Exception:
             pass  # Recompute corrupted shard
 
@@ -142,7 +143,7 @@ def _simulate_single_scenario_worker(task: Tuple[int, Dict[str, Any], np.ndarray
         cell_size_m=cell_size_m,
     )
 
-    depth_f16 = res["depth_frames"].astype(np.float16)  # shape (121, 64, 64)
+    depth_f32 = res["depth_frames"].astype(np.float32)  # shape (121, 64, 64) in float32
     rain_f32 = np.array(rain_series, dtype=np.float32)   # shape (120,)
     # cum_drain_m3_series is shape (121,) where index 0 is 0.0; steps 1..120 are output steps
     cum_drain_m3 = np.array(res["cum_drain_m3_series"][1:], dtype=np.float32)  # shape (120,)
@@ -161,7 +162,7 @@ def _simulate_single_scenario_worker(task: Tuple[int, Dict[str, Any], np.ndarray
     temp_shard = f"{shard_path}_{os.getpid()}.tmp.npz"
     np.savez_compressed(
         temp_shard,
-        depth=depth_f16,
+        depth=depth_f32,
         rain=rain_f32,
         drain_m3=cum_drain_m3,
         params=params_vec,
@@ -252,14 +253,16 @@ def generate_dataset(
 
     # Print pre-flight estimate
     total_scenarios = n + n_extrapolation
-    bytes_per_scenario = (121 * 64 * 64 * 2) + (120 * 4) + (120 * 4) + (4 * 4)
+    bytes_per_scenario = (121 * 64 * 64 * 4) + (120 * 4) + (120 * 4) + (4 * 4)
     est_total_bytes = total_scenarios * bytes_per_scenario
-    est_time_s = total_scenarios * 0.28 / max(1, (os.cpu_count() or 4) - 2)
+    workers = max_workers or min(6, max(1, (os.cpu_count() or 4) - 2))
+    est_time_s = total_scenarios * 0.28 / max(1, workers)
     print("\n" + "=" * 60)
-    print("PRE-FLIGHT GENERATION ESTIMATE:")
+    print("PRE-FLIGHT GENERATION ESTIMATE (FLOAT32):")
     print(f"  Scenarios: {total_scenarios} total (train: {n_train}, val: {n_val}, test: {n_test}, extrap: {n_extrapolation})")
     print(f"  Estimated storage: {est_total_bytes / (1024**2):.1f} MB (limit: 1500 MB)")
     print(f"  Estimated runtime: {est_time_s:.1f} s (~{est_time_s / 60:.1f} min, limit: 45 min)")
+    print(f"  Worker processes:  {workers}")
     print("=" * 60 + "\n")
 
     if est_total_bytes > 1.5 * (1024**3):
@@ -267,7 +270,7 @@ def generate_dataset(
     if est_time_s > 45 * 60:
         raise RuntimeError(f"Time estimate ({est_time_s / 60:.1f} min) exceeds 45 minute limit!")
 
-    workers = max_workers or max(1, (os.cpu_count() or 4) - 2)
+    workers = max_workers or min(6, max(1, (os.cpu_count() or 4) - 2))
     print(f"[Dataset] Executing with {workers} parallel worker processes...")
 
     # Build work items
@@ -315,7 +318,7 @@ def generate_dataset(
         split_dir = out_path / split_name
         split_dir.mkdir(parents=True, exist_ok=True)
 
-        depth_arr = np.empty((num_sc, 121, 64, 64), dtype=np.float16)
+        depth_arr = np.empty((num_sc, 121, 64, 64), dtype=np.float32)
         rain_arr = np.empty((num_sc, 120), dtype=np.float32)
         drain_arr = np.empty((num_sc, 120), dtype=np.float32)
         params_arr = np.empty((num_sc, 4), dtype=np.float32)
@@ -447,7 +450,7 @@ def verify_dataset(
 
         num_sc = sinfo["num_samples"]
         assert depth_mmap.shape == (num_sc, 121, 64, 64), f"Unexpected shape: {depth_mmap.shape}"
-        assert depth_mmap.dtype == np.float16, f"Unexpected dtype: {depth_mmap.dtype}"
+        assert depth_mmap.dtype == np.float32, f"Unexpected dtype: {depth_mmap.dtype}"
         assert rain_arr.shape == (num_sc, 120), f"Unexpected rain shape: {rain_arr.shape}"
         assert drain_arr.shape == (num_sc, 120), f"Unexpected drain shape: {drain_arr.shape}"
 
