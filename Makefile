@@ -15,7 +15,7 @@ help:
 	@echo "  make clean            Remove cached build artifacts and temporary files"
 
 setup:
-	pip install -r requirements.txt
+	pip install -r requirements.txt -r requirements-ml.txt
 
 dev:
 	./scripts/dev.sh

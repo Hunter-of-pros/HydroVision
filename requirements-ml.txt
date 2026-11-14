@@ -1,0 +1,5 @@
+# Deep Learning Framework & Acceleration (Local / GPU / Dedicated Server)
+torch>=2.0.0
+matplotlib>=3.7.0
+rasterio>=1.3.0
+numba>=0.57.0

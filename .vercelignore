@@ -16,8 +16,6 @@ __pycache__/
 .pytest_cache/
 tests/
 
-# Ignore root heavy requirements so Vercel uses api/requirements.txt
-requirements.txt
 
 # Local files & OS
 .DS_Store

@@ -1,19 +1,7 @@
-# HydroVision Dependencies (ML Pipeline + Backend API)
-# Pin exact versions after first successful pip install in production environment
-
+# HydroVision Core & Backend Dependencies
 # Numerical and Scientific Computing
 numpy>=1.24.0
 scipy>=1.10.0
-
-# Deep Learning Framework
-torch>=2.0.0
-
-# Geospatial and Visualization
-matplotlib>=3.7.0
-rasterio>=1.3.0
-
-# Acceleration
-numba>=0.57.0
 
 # Web Backend & Serving
 fastapi>=0.100.0
@@ -23,4 +11,3 @@ pydantic>=2.0.0
 # Testing & HTTP Clients
 pytest>=7.3.0
 httpx>=0.24.0
-
