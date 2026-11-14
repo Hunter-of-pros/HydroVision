@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Play, Pause, RotateCcw, Clock } from 'lucide-react';
+import { Play, Pause, RotateCcw } from 'lucide-react';
 
 interface TimelineProps {
   currentFrame: number;
@@ -23,8 +23,8 @@ export const Timeline: React.FC<TimelineProps> = ({
   onSeek,
   speedMultiplier,
   onChangeSpeed,
-  peakDepthM,
-  floodedAreaM2,
+  peakDepthM: _peakDepthM,
+  floodedAreaM2: _floodedAreaM2,
 }) => {
   // Format seconds into HH:MM:SS
   const formatTime = (seconds: number = 0): string => {
@@ -47,93 +47,67 @@ export const Timeline: React.FC<TimelineProps> = ({
   }, [isPlaying, totalFrames, speedMultiplier, currentFrame, onSeek]);
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3 text-slate-900">
-      {/* Upper Timeline Row */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          {/* Play/Pause */}
-          <button
-            onClick={onTogglePlay}
-            className="p-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white shadow-md shadow-brand-500/20 active:scale-95 transition"
-            title={isPlaying ? 'Pause simulation' : 'Play simulation'}
-          >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-          </button>
+    <div className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm flex items-center gap-4 text-slate-900">
+      {/* Left playback controls: circular Play, circular Reset, Speed pills */}
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={onTogglePlay}
+          className="w-10 h-10 rounded-full bg-[#0e7490] hover:bg-[#0c667e] text-white flex items-center justify-center shrink-0 shadow-sm active:scale-95 transition"
+          title={isPlaying ? 'Pause simulation' : 'Play simulation'}
+        >
+          {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+        </button>
 
-          {/* Reset */}
-          <button
-            onClick={() => onSeek(0)}
-            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition"
-            title="Reset to t=0"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+        <button
+          onClick={() => onSeek(0)}
+          className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 hover:text-slate-900 flex items-center justify-center shrink-0 transition"
+          title="Reset to frame 0"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+        </button>
 
-          {/* Speed Buttons */}
-          <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200">
-            {[1, 2, 5].map((spd) => (
-              <button
-                key={spd}
-                onClick={() => onChangeSpeed(spd)}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition ${
-                  speedMultiplier === spd
-                    ? 'bg-brand-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {spd}x
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Time Readout */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800">
-            <Clock className="w-4 h-4 text-brand-600" />
-            <span className="font-mono text-sm font-bold text-slate-900 tracking-wide">
-              {formatTime(currentTimeS)}
-            </span>
-            <span className="text-xs text-slate-500 font-mono">
-              (Frame {currentFrame}/{Math.max(0, totalFrames - 1)})
-            </span>
-          </div>
-
-          {peakDepthM !== undefined && (
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-              <span className="text-slate-500">Peak Depth:</span>
-              <span className="font-mono font-bold text-cyan-700">{peakDepthM.toFixed(2)} m</span>
-            </div>
-          )}
-
-          {floodedAreaM2 !== undefined && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-              <span className="text-slate-500">Flooded Extent:</span>
-              <span className="font-mono font-bold text-blue-700">
-                {(floodedAreaM2 / 10000).toFixed(1)} ha
-              </span>
-            </div>
-          )}
+        <div className="flex items-center bg-slate-100 rounded-lg p-0.5 border border-slate-200 text-xs shrink-0">
+          {[1, 2, 5].map((spd) => (
+            <button
+              key={spd}
+              onClick={() => onChangeSpeed(spd)}
+              className={`px-2 py-1 font-semibold rounded-md transition ${
+                speedMultiplier === spd
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              {spd}x
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Scrubber Range Slider */}
-      <div className="relative flex items-center">
+      {/* Center: Track slider with horizon labels below */}
+      <div className="flex-1 flex flex-col justify-center gap-1 min-w-[200px]">
         <input
           type="range"
           min={0}
           max={Math.max(0, totalFrames - 1)}
           value={currentFrame}
           onChange={(e) => onSeek(Number(e.target.value))}
-          className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-600"
+          className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0e7490]"
         />
+        <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+          <span>00:00:00 Rain begins</span>
+          <span>01:00:00 +1h</span>
+          <span>02:00:00 +2h Peak runoff</span>
+        </div>
       </div>
 
-      {/* Horizon Labels */}
-      <div className="flex justify-between text-[10px] text-slate-400 font-mono">
-        <span>00:00:00 (Rain Begins)</span>
-        <span>01:00:00 (+1h)</span>
-        <span>02:00:00 (+2h Peak Runoff)</span>
+      {/* Right: Digital clock and Frame counter */}
+      <div className="flex flex-col items-end shrink-0 pl-2">
+        <span className="font-mono text-base font-bold text-slate-800 tracking-tight leading-tight">
+          {formatTime(currentTimeS)}
+        </span>
+        <span className="text-[10px] text-slate-400 font-mono">
+          Frame {currentFrame}/{Math.max(0, totalFrames - 1)}
+        </span>
       </div>
     </div>
   );

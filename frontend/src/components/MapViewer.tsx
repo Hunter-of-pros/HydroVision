@@ -1,18 +1,13 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import {
   Compass,
-  Layers,
-  Download,
-  MapPin,
   Loader2,
   Camera,
   ExternalLink,
   X,
-  Map as MapIcon,
   Navigation,
   AlertTriangle,
   Waves,
-  Box,
 } from 'lucide-react';
 import { TerrainData } from '../types';
 
@@ -35,7 +30,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   nextDepthFrame,
   frameProgress = 0,
   title = 'Urban Flood Inundation Map',
-  isSolverComparison = false,
+  isSolverComparison: _isSolverComparison = false,
   selectedProbeCell,
   onSelectProbeCell,
   isMock = false,
@@ -193,23 +188,31 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     return blended;
   }, [depthFrame, nextDepthFrame, frameProgress, rows, cols]);
 
-  // Urban 3D building footprints for Marathahalli-Bellandur corridor
+  // Urban 3D town building footprints matching the reference 3D isometric town view
   const urbanBuildings = useMemo(() => {
-    // Generate deterministic urban building blocks aligned to non-flooding high-ground parcels
-    const list: Array<{ r: number; c: number; w: number; h: number; height: number }> = [];
-    const seed = 42;
-    for (let r = 8; r < 56; r += 6) {
-      for (let c = 8; c < 56; c += 6) {
-        // Skip lake lowlands in south-east
-        if (r > 38 && c > 36) continue;
-        const pseudo = ((r * 13 + c * 37 + seed) % 100) / 100;
-        if (pseudo > 0.35) {
+    const list: Array<{
+      r: number;
+      c: number;
+      w: number;
+      h: number;
+      height: number;
+      roofType: 'gable' | 'flat';
+    }> = [];
+    const seed = 73;
+    // Clustered town center settlements
+    for (let r = 6; r < 58; r += 4) {
+      for (let c = 6; c < 58; c += 4) {
+        // Skip main water channel corridor
+        if (Math.abs(r - (50 - c * 0.45)) < 3.5) continue;
+        const pseudo = ((r * 17 + c * 43 + seed) % 100) / 100;
+        if (pseudo > 0.3) {
           list.push({
-            r: r + Math.floor(pseudo * 2),
-            c: c + Math.floor(pseudo * 2),
-            w: 2 + Math.floor(pseudo * 2.5),
-            h: 2 + Math.floor(pseudo * 2.5),
-            height: 12 + Math.floor(pseudo * 24), // building height in meters
+            r: r + (pseudo > 0.6 ? 1 : 0),
+            c: c + (pseudo > 0.4 ? 1 : 0),
+            w: 1.5 + Math.floor(pseudo * 2.2),
+            h: 1.5 + Math.floor(pseudo * 2.2),
+            height: 8 + Math.floor(pseudo * 20),
+            roofType: pseudo > 0.5 ? 'gable' : 'flat',
           });
         }
       }
@@ -235,34 +238,69 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     if (basemapMode === 'streets' && streetsImgRef.current) {
       ctx.drawImage(streetsImgRef.current, 0, 0, width, height);
       // Subtle contrast overlay to enhance street readability
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.10)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.08)';
       ctx.fillRect(0, 0, width, height);
     } else if (basemapMode === 'satellite' && satImgRef.current) {
       ctx.drawImage(satImgRef.current, 0, 0, width, height);
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.15)';
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.12)';
       ctx.fillRect(0, 0, width, height);
     } else if (basemapMode === 'topo' && topoImgRef.current) {
       ctx.drawImage(topoImgRef.current, 0, 0, width, height);
     } else {
-      // Fallback procedural elevation relief
+      // Clean modern light base with subtle terrain gradient
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const elev = terrain.elevation[r]?.[c] ?? 880;
           const normElev = Math.max(0, Math.min(1, (elev - minElev) / Math.max(1, maxElev - minElev)));
-          // Emerald to ochre hypsometric tint
-          const red = Math.floor(34 + normElev * 140);
-          const green = Math.floor(110 + normElev * 40);
-          const blue = Math.floor(70 + normElev * 20);
+          const red = Math.floor(240 - normElev * 20);
+          const green = Math.floor(244 - normElev * 15);
+          const blue = Math.floor(248 - normElev * 10);
           ctx.fillStyle = `rgb(${red}, ${green}, ${blue})`;
           ctx.fillRect(c * cellW, r * cellH, cellW + 0.5, cellH + 0.5);
         }
       }
     }
 
+    // Grid Mesh (always visible or toggled)
+    ctx.strokeStyle = showGrid ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i <= 8; i++) {
+      const pos = (i / 8) * width;
+      ctx.beginPath();
+      ctx.moveTo(pos, 0);
+      ctx.lineTo(pos, height);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, pos);
+      ctx.lineTo(width, pos);
+      ctx.stroke();
+    }
+
+    // Arterial Road Corridor (Marathahalli-Bellandur ORR Highway)
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.74);
+    ctx.bezierCurveTo(width * 0.35, height * 0.65, width * 0.65, height * 0.52, width, height * 0.42);
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)'; // Warm golden road corridor
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(245, 158, 11, 0.35)';
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.74);
+    ctx.bezierCurveTo(width * 0.35, height * 0.65, width * 0.65, height * 0.52, width, height * 0.42);
+    ctx.strokeStyle = '#fef3c7'; // Inner road spine marking
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
     // Composite hillshade relief under water so terrain topography reads clearly
     if (cachedHillshadeRef.current) {
       ctx.save();
-      ctx.globalAlpha = 0.22;
+      ctx.globalAlpha = 0.20;
       ctx.drawImage(cachedHillshadeRef.current, 0, 0, width, height);
       ctx.restore();
     }
@@ -437,14 +475,14 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         const by = b.r * cellH;
         const bw = b.w * cellW;
         const bh = b.h * cellH;
-        const hOffset = Math.min(28, (b.height / 30) * 16);
+        const hOffset = Math.min(32, (b.height / 30) * 18);
 
         // Building shadow
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.35)';
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
         ctx.fillRect(bx + 4, by + 4, bw, bh);
 
-        // Building Walls (isometric extrusion south & east)
-        ctx.fillStyle = '#cbd5e1'; // light slate wall
+        // Building Walls (crisp white with dark slate outline)
+        ctx.fillStyle = '#e2e8f0';
         ctx.beginPath();
         ctx.moveTo(bx, by + bh);
         ctx.lineTo(bx + bw, by + bh);
@@ -452,51 +490,65 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         ctx.lineTo(bx, by + bh + hOffset * 0.5);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1.2;
         ctx.stroke();
 
-        // Building Rooftop (white block with dark contour, matching reference image)
-        ctx.fillStyle = '#f8fafc';
-        ctx.fillRect(bx, by - hOffset * 0.5, bw, bh);
-        ctx.strokeStyle = '#334155';
-        ctx.lineWidth = 1.5;
-        ctx.strokeRect(bx, by - hOffset * 0.5, bw, bh);
-      }
-      ctx.restore();
-    }
-
-    // 4. Optional Grid Lines
-    if (showGrid) {
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = 0.75;
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          ctx.strokeRect(c * cellW, r * cellH, cellW, cellH);
+        // Building Rooftop (white surface with dark perimeter outline)
+        if (b.roofType === 'gable') {
+          // Gabled roof peak
+          ctx.fillStyle = '#ffffff';
+          ctx.beginPath();
+          ctx.moveTo(bx, by - hOffset * 0.5);
+          ctx.lineTo(bx + bw / 2, by - hOffset * 0.5 - 6);
+          ctx.lineTo(bx + bw, by - hOffset * 0.5);
+          ctx.lineTo(bx + bw, by + bh - hOffset * 0.5);
+          ctx.lineTo(bx + bw / 2, by + bh - hOffset * 0.5 - 6);
+          ctx.lineTo(bx, by + bh - hOffset * 0.5);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = '#1e293b';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        } else {
+          // Flat roof
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(bx, by - hOffset * 0.5, bw, bh);
+          ctx.strokeStyle = '#1e293b';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(bx, by - hOffset * 0.5, bw, bh);
         }
       }
-    }
-
-    // 5. Active Probe Pin Marker
-    if (selectedProbeCell) {
-      const pinX = (selectedProbeCell.col + 0.5) * cellW;
-      const pinY = (selectedProbeCell.row + 0.5) * cellH;
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(pinX, pinY, 10, 0, 2 * Math.PI);
-      ctx.strokeStyle = 'rgba(34, 211, 238, 0.95)';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.arc(pinX, pinY, 4.5, 0, 2 * Math.PI);
-      ctx.fillStyle = '#06b6d4';
-      ctx.shadowColor = '#22d3ee';
-      ctx.shadowBlur = 14;
-      ctx.fill();
       ctx.restore();
     }
+
+    // 4. Active Probe Pin Marker (matching Attachment 2 red circle with white center)
+    const probeCell = selectedProbeCell || { row: 38, col: 26 };
+    const pinX = (probeCell.col + 0.5) * cellW;
+    const pinY = (probeCell.row + 0.5) * cellH;
+
+    ctx.save();
+    // Soft outer ring / shadow
+    ctx.beginPath();
+    ctx.arc(pinX, pinY, 9, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(239, 68, 68, 0.4)';
+    ctx.shadowBlur = 8;
+    ctx.fill();
+
+    // Red outer stroke ring
+    ctx.beginPath();
+    ctx.arc(pinX, pinY, 7, 0, 2 * Math.PI);
+    ctx.strokeStyle = '#ef4444';
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+
+    // Center white dot
+    ctx.beginPath();
+    ctx.arc(pinX, pinY, 2.5, 0, 2 * Math.PI);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.restore();
   }, [
     terrain,
     depthFrame,
@@ -636,127 +688,112 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden text-slate-900">
       {/* Top Map Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span
-            className={`w-2.5 h-2.5 rounded-full ${
-              isSolverComparison ? 'bg-amber-500' : 'bg-brand-500 animate-pulse'
-            }`}
-          />
-          <h3 className="text-sm font-bold text-slate-900 tracking-wide">{title}</h3>
-          <span className="text-[10px] text-slate-500 font-mono px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
-            {terrain?.dx_m ?? 60.9}m/cell • Marathahalli-Bellandur ORR
-          </span>
+        <div className="flex items-center gap-1.5 text-xs text-slate-700">
+          <h3 className="font-bold text-slate-800">{title}</h3>
+          <span className="text-slate-400">&middot;</span>
+          <span className="font-mono text-slate-500">{terrain?.dx_m ?? 60.9} m/cell</span>
+          <span className="text-slate-400">&middot;</span>
+          <span className="font-mono text-slate-500">Marathahalli-Bellandur ORR</span>
         </div>
 
-        {/* Basemap Switcher & Action Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {/* 2D Plan vs 3D Oblique Perspective Toggle (matching reference image) */}
+        {/* Basemap Switcher & Action Controls matching reference toolbar */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* 2D Plan vs 3D Street View */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
             <button
               onClick={() => setViewAngle('2d')}
-              className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-md transition font-medium ${
                 viewAngle === '2d'
-                  ? 'bg-white text-slate-900 shadow-sm'
+                  ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="2D Top-Down Plan View"
             >
-              <span>2D Map</span>
+              2D Map
             </button>
             <button
               onClick={() => setViewAngle('3d')}
-              className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-md transition font-medium ${
                 viewAngle === '3d'
-                  ? 'bg-brand-600 text-white shadow-sm'
+                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="3D Oblique Urban Street Perspective"
             >
-              <Box className="w-3.5 h-3.5" />
-              <span>3D Street View</span>
+              3D Street View
             </button>
           </div>
 
-          {/* Basemap Toggle Group (Streets, Satellite, Topo) */}
+          {/* Streets | Satellite | Topo */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
             <button
               onClick={() => setBasemapMode('streets')}
-              className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-md transition font-medium ${
                 basemapMode === 'streets'
-                  ? 'bg-brand-600 text-white shadow-sm'
+                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="Real Esri / OSM Labeled Street Network (No API key needed)"
             >
-              <MapIcon className="w-3 h-3" />
-              <span>Streets</span>
+              Streets
             </button>
             <button
               onClick={() => setBasemapMode('satellite')}
-              className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-md transition font-medium ${
                 basemapMode === 'satellite'
-                  ? 'bg-brand-600 text-white shadow-sm'
+                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="Real Satellite Aerial Photography"
             >
-              <span>Satellite</span>
+              Satellite
             </button>
             <button
               onClick={() => setBasemapMode('topo')}
-              className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
+              className={`px-2.5 py-1 rounded-md transition font-medium ${
                 basemapMode === 'topo'
-                  ? 'bg-brand-600 text-white shadow-sm'
+                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
-              title="Hillshaded Digital Elevation Topography"
             >
-              <span>Topo</span>
+              Topo
             </button>
           </div>
 
-          {/* Real Street View Simulator Modal Launcher */}
+          {/* Ground Level Modal */}
           <button
             onClick={() => setIsStreetViewOpen(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-cyan-50 border border-cyan-200 hover:bg-cyan-100 text-cyan-800 text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
-            title="Open Street-Level Flood Simulator"
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-medium transition"
           >
-            <Camera className="w-3.5 h-3.5 text-cyan-600" />
-            <span className="hidden sm:inline">Ground Level</span>
+            Ground Level
           </button>
 
-          {/* Indicative Flow Vectors Toggle */}
+          {/* Flow Vectors */}
           <button
             onClick={() => setShowFlowVectors(!showFlowVectors)}
-            className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 text-xs ${
+            className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition ${
               showFlowVectors
-                ? 'bg-cyan-50 text-cyan-800 border border-cyan-200'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white text-slate-900 border-slate-300 shadow-xs font-semibold'
+                : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
             }`}
-            title="Toggle Indicative Flow Direction (Water Surface Gradient)"
           >
-            <Navigation className="w-3 h-3 rotate-45 text-cyan-600" />
-            <span className="hidden sm:inline">Flow Vectors</span>
+            Flow Vectors
           </button>
 
+          {/* Layers */}
           <button
             onClick={() => setShowGrid(!showGrid)}
-            className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 transition ${
+            className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition ${
               showGrid
                 ? 'bg-slate-200 text-slate-900 border-slate-300'
-                : 'bg-slate-100 text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-200'
+                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
             }`}
-            title="Toggle grid mesh overlay"
           >
-            <Layers className="w-3.5 h-3.5" />
+            Layers
           </button>
 
+          {/* Export */}
           <button
             onClick={handleDownloadSnapshot}
-            className="p-1.5 rounded-lg bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-600 hover:text-slate-900 text-xs flex items-center gap-1 transition"
-            title="Export high-res snapshot PNG"
+            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-medium transition"
           >
-            <Download className="w-3.5 h-3.5" />
+            Export
           </button>
         </div>
       </div>
@@ -809,50 +846,45 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           </div>
         )}
 
-        {/* North Arrow Indicator */}
-        <div className="absolute top-3 right-3 p-1.5 rounded-xl bg-white/90 backdrop-blur border border-slate-200 shadow-sm flex flex-col items-center pointer-events-none z-10">
-          <Compass className="w-4 h-4 text-cyan-600" />
-          <span className="text-[9px] font-bold text-slate-700 font-mono">N</span>
-        </div>
-
-        {/* Perspective Badge */}
-        {viewAngle === '3d' && (
-          <div className="absolute top-3 right-12 bg-white/90 backdrop-blur border border-brand-200 rounded-lg px-2.5 py-1 text-[10px] font-semibold text-brand-700 font-mono shadow-sm pointer-events-none z-10 flex items-center gap-1.5">
-            <Box className="w-3 h-3 text-brand-600" />
-            <span>3D Oblique Urban View</span>
+        {/* North Arrow Indicator matching reference */}
+        {viewAngle === '3d' ? (
+          <div className="absolute top-3 right-3 w-9 h-9 rounded-full bg-slate-900/85 backdrop-blur border border-slate-700/80 shadow-md flex items-center justify-center pointer-events-none z-10">
+            <Compass className="w-5 h-5 text-sky-400" />
+            <span className="absolute -top-1 right-1.5 text-[8px] font-bold text-rose-500 font-mono">N</span>
+          </div>
+        ) : (
+          <div className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-white/90 backdrop-blur border border-slate-200 shadow-xs flex items-center gap-1 pointer-events-none z-10">
+            <span className="text-[11px] font-bold text-slate-700 font-mono">N &uarr;</span>
           </div>
         )}
 
-        {/* Indicative Flow Direction Overlay Pill */}
-        {showFlowVectors && (
-          <div className="absolute top-3 right-3 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-2 py-0.5 text-[10px] text-cyan-800 font-mono shadow-sm pointer-events-none z-10 flex items-center gap-1">
-            <Navigation className="w-2.5 h-2.5 rotate-45 text-cyan-600" />
-            <span>Indicative flow direction</span>
-          </div>
-        )}
-
-        {/* Selected Probe Badge with Street View trigger */}
+        {/* Selected Probe Badge or Click Street Prompt */}
         {selectedProbeCell ? (
           <div
             onClick={() => setIsStreetViewOpen(true)}
-            className="absolute top-3 left-3 bg-white/95 backdrop-blur border border-cyan-300 rounded-lg px-2.5 py-1 text-[11px] text-cyan-800 font-mono shadow-md flex items-center gap-1.5 z-10 cursor-pointer hover:bg-cyan-50 transition"
+            className="absolute top-3 left-3 bg-white/95 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs flex items-center gap-1.5 z-10 cursor-pointer hover:bg-slate-50 transition"
             title="Click to view Street View at probe"
           >
-            <MapPin className="w-3.5 h-3.5 text-cyan-600" />
             <span>
-              Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}] • {activeStreetCell.lat.toFixed(4)}°N
+              Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}] &middot; {activeStreetCell.lat.toFixed(3)}&deg;N
             </span>
-            <Camera className="w-3 h-3 text-cyan-600 ml-1" />
           </div>
         ) : (
-          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-2 py-0.5 text-[10px] text-slate-600 font-mono shadow-sm pointer-events-none z-10">
-            🗺️ Click street to inspect water depth
+          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs pointer-events-none z-10">
+            Click street to inspect water depth
+          </div>
+        )}
+
+        {/* Indicative Flow Direction Overlay Pill at Bottom Left */}
+        {showFlowVectors && (
+          <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs pointer-events-none z-10 flex items-center gap-1.5">
+            <span>Indicative flow direction</span>
           </div>
         )}
 
         {/* Live Hover Inspector Overlay */}
         {hoverCell && (
-          <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur border border-slate-200 rounded-xl px-3 py-2 text-xs shadow-xl font-mono flex flex-col gap-0.5 pointer-events-none z-10 text-slate-800">
+          <div className="absolute bottom-11 left-3 bg-white/95 backdrop-blur border border-slate-200 rounded-xl px-3 py-2 text-xs shadow-xl font-mono flex flex-col gap-0.5 pointer-events-none z-10 text-slate-800">
             <div className="flex items-center justify-between gap-4 text-slate-500 text-[10px] border-b border-slate-200 pb-1">
               <span>
                 Cell [{hoverCell.row}, {hoverCell.col}] •{' '}
@@ -883,18 +915,18 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
       {/* Colormap Legend Scale (Square-Root Non-Linear Perceptual Ramp) */}
       <div className="flex flex-col gap-1.5 pt-1">
-        <div className="h-2.5 w-full rounded-full overflow-hidden flex shadow-inner border border-slate-200">
-          <div className="w-[8%] bg-slate-200" title="Dry pavement (< 0.01m / 1cm)" />
-          <div className="w-[22%] bg-gradient-to-r from-sky-400 to-cyan-500" title="1cm - 15cm (Thin sheet flow)" />
-          <div className="w-[35%] bg-gradient-to-r from-cyan-500 to-blue-600" title="15cm - 60cm (Street curb overflow)" />
-          <div className="w-[35%] bg-gradient-to-r from-blue-600 to-indigo-950" title="60cm - 2.0m+ (Deep deluge)" />
+        <div className="h-2 w-full rounded-full overflow-hidden flex shadow-inner border border-slate-200">
+          <div className="w-[12%] bg-slate-200" title="Dry pavement (< 0.01m / 1cm)" />
+          <div className="w-[20%] bg-gradient-to-r from-sky-400 to-cyan-500" title="1cm - 15cm (Thin sheet flow)" />
+          <div className="w-[34%] bg-gradient-to-r from-cyan-500 to-blue-600" title="15cm - 60cm (Street curb overflow)" />
+          <div className="w-[34%] bg-gradient-to-r from-blue-600 to-indigo-950" title="60cm - 2.0m+ (Deep deluge)" />
         </div>
         <div className="flex justify-between text-[10px] text-slate-500 font-mono">
           <span>Dry (&lt;1cm)</span>
-          <span>5cm (Sheet flow)</span>
-          <span>15cm (Curb breached)</span>
-          <span>60cm (Vehicle hazard)</span>
-          <span>2.0m+ (Deep deluge)</span>
+          <span>5cm Sheet flow</span>
+          <span>15cm Curb breached</span>
+          <span>60cm Vehicle hazard</span>
+          <span>2.0m+ Deep deluge</span>
         </div>
       </div>
 

@@ -18,11 +18,11 @@ export const PointProbe: React.FC<PointProbeProps> = ({
 }) => {
   if (!selectedCell || !depthTimeseries || depthTimeseries.length === 0) {
     return (
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between text-xs text-slate-500">
-        <div className="flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-cyan-600" />
-          <span>Click anywhere on the map to drop a probe pin and inspect localized flood hydrograph.</span>
-        </div>
+      <div className="bg-[#ecfeff] border border-[#a5f3fc] rounded-2xl p-4 shadow-xs flex flex-col gap-1.5 text-slate-800">
+        <h4 className="text-xs font-bold text-[#0e7490]">Point probe</h4>
+        <p className="text-xs text-slate-600 leading-relaxed">
+          Click anywhere on the map to drop a probe pin and inspect the localized flood hydrograph.
+        </p>
       </div>
     );
   }

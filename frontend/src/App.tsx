@@ -401,14 +401,12 @@ export const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Persistent Amber Banner: Offline Fallback OR Mock Engine */}
       {isOfflineFallback ? (
-        <div className="bg-amber-100 border-b border-amber-300 text-amber-950 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>OFFLINE FALLBACK: saved example, not a live forecast</span>
+        <div className="bg-[#fef3c7] border-b border-[#fde68a] text-[#92400e] px-4 py-1.5 text-[11px] font-bold text-center tracking-wider uppercase shadow-xs">
+          OFFLINE FALLBACK: SAVED EXAMPLE, NOT A LIVE FORECAST
         </div>
       ) : isMock ? (
-        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>MOCK ENGINE: simulated data, not real model results</span>
+        <div className="bg-[#fef3c7] border-b border-[#fde68a] text-[#92400e] px-4 py-1.5 text-[11px] font-bold text-center tracking-wider uppercase shadow-xs">
+          MOCK ENGINE: SIMULATED DATA, NOT REAL MODEL RESULTS
         </div>
       ) : null}
 
@@ -423,7 +421,7 @@ export const App: React.FC = () => {
         savedRunsCount={savedRuns.length}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
+      <main className="flex-1 w-full max-w-[1560px] mx-auto p-4 sm:p-5 flex flex-col gap-4">
         {/* Error Notification Banner with Retry and Reset options */}
         {errorMessage && (
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-rose-800 text-xs shadow-md animate-in fade-in">
@@ -461,13 +459,7 @@ export const App: React.FC = () => {
           <EvaluationTab presets={presets} isGlobalMock={isMock} />
         ) : (
           <>
-            {/* Illustrative Hazard Risk Assessment Bar */}
-            <HazardMetrics
-              depthFrame={activeDepthFrame}
-              thresholds={config?.hazard_thresholds}
-            />
-
-            {/* Scenario Comparison View, Solver Verification View, or Main Simulation View */}
+            {/* Scenario Comparison View, Solver Verification View, or Main Simulation 3-Column View */}
             {activeRunComparison ? (
               <RunComparisonView
                 runA={activeRunComparison.runA}
@@ -485,31 +477,9 @@ export const App: React.FC = () => {
                 isMock={isMock}
               />
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                {/* Left Column: Map Viewer & Probe */}
-                <div className="lg:col-span-7 flex flex-col gap-4">
-                  <MapViewer
-                    terrain={terrain}
-                    depthFrame={activeDepthFrame}
-                    nextDepthFrame={nextDepthFrame}
-                    title="⚡ Live Neural Surrogate Forecast Overlay"
-                    selectedProbeCell={selectedProbeCell}
-                    onSelectProbeCell={setSelectedProbeCell}
-                    isMock={isMock}
-                    isLoading={isForecasting}
-                  />
-
-                  <PointProbe
-                    selectedCell={selectedProbeCell}
-                    depthTimeseries={depthTimeseries}
-                    currentFrame={currentFrame}
-                    totalFrames={totalFrames}
-                    onClear={() => setSelectedProbeCell(null)}
-                  />
-                </div>
-
-                {/* Right Column: Controls & Hyetograph */}
-                <div className="lg:col-span-5 flex flex-col gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                {/* Left Column: 1. Pick a storm, 2. Tune the rain, Action Buttons */}
+                <div className="lg:col-span-3 flex flex-col gap-4">
                   <Controls
                     params={params}
                     onChange={handleParamsChange}
@@ -524,30 +494,58 @@ export const App: React.FC = () => {
                     savedRunsCount={savedRuns.length}
                     onOpenDrawer={() => setIsDrawerOpen(true)}
                   />
+                </div>
+
+                {/* Center Column: Map Viewer & Timeline Scrubber */}
+                <div className="lg:col-span-6 flex flex-col gap-4">
+                  <MapViewer
+                    terrain={terrain}
+                    depthFrame={activeDepthFrame}
+                    nextDepthFrame={nextDepthFrame}
+                    title="Live Neural Surrogate Forecast Overlay"
+                    selectedProbeCell={selectedProbeCell}
+                    onSelectProbeCell={setSelectedProbeCell}
+                    isMock={isMock}
+                    isLoading={isForecasting}
+                  />
+
+                  {/* Timeline Scrubber directly beneath the Map */}
+                  <Timeline
+                    currentFrame={currentFrame}
+                    totalFrames={totalFrames}
+                    timesS={forecastResult?.times_s || []}
+                    isPlaying={isPlaying}
+                    onTogglePlay={() => setIsPlaying(!isPlaying)}
+                    onSeek={(frame) => setCurrentFrame(frame)}
+                    speedMultiplier={speedMultiplier}
+                    onChangeSpeed={(spd) => setSpeedMultiplier(spd)}
+                    peakDepthM={forecastResult?.peak_depth_m}
+                    floodedAreaM2={forecastResult?.flooded_area_m2}
+                  />
+                </div>
+
+                {/* Right Column: Illustrative Hazard Levels, Hyetograph, Point Probe */}
+                <div className="lg:col-span-3 flex flex-col gap-4">
+                  <HazardMetrics
+                    depthFrame={activeDepthFrame}
+                    thresholds={config?.hazard_thresholds}
+                  />
 
                   <Hyetograph
                     rainSeriesMmhr={forecastResult?.rain_series_mmhr || []}
                     currentFrame={currentFrame}
                     totalFrames={totalFrames}
                   />
+
+                  <PointProbe
+                    selectedCell={selectedProbeCell}
+                    depthTimeseries={depthTimeseries}
+                    currentFrame={currentFrame}
+                    totalFrames={totalFrames}
+                    onClear={() => setSelectedProbeCell(null)}
+                  />
                 </div>
               </div>
-            )}
-
-            {/* Global Timeline Scrubber (only shown in single-run mode) */}
-            {!activeRunComparison && (
-              <Timeline
-                currentFrame={currentFrame}
-                totalFrames={totalFrames}
-                timesS={forecastResult?.times_s || []}
-                isPlaying={isPlaying}
-                onTogglePlay={() => setIsPlaying(!isPlaying)}
-                onSeek={(frame) => setCurrentFrame(frame)}
-                speedMultiplier={speedMultiplier}
-                onChangeSpeed={(spd) => setSpeedMultiplier(spd)}
-                peakDepthM={forecastResult?.peak_depth_m}
-                floodedAreaM2={forecastResult?.flooded_area_m2}
-              />
             )}
           </>
         )}
