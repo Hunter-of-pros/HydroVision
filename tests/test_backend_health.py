@@ -14,7 +14,8 @@ from backend import services
 client = TestClient(app)
 
 
-def test_health_endpoint_mock():
+def test_health_endpoint_mock(monkeypatch):
+    monkeypatch.setenv("HYDRO_MODE", "mock")
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
@@ -99,7 +100,8 @@ def test_presets_endpoint_working():
     assert "params" in first
 
 
-def test_forecast_endpoint_mock_execution():
+def test_forecast_endpoint_mock_execution(monkeypatch):
+    monkeypatch.setenv("HYDRO_MODE", "mock")
     payload = {
         "rain_intensity_mmhr": 80.0,
         "rain_duration_min": 45.0,
@@ -121,7 +123,8 @@ def test_forecast_endpoint_mock_execution():
     assert "mass_residual_series" in data
 
 
-def test_compare_endpoint_mock_execution():
+def test_compare_endpoint_mock_execution(monkeypatch):
+    monkeypatch.setenv("HYDRO_MODE", "mock")
     payload = {
         "rain_intensity_mmhr": 80.0,
         "rain_duration_min": 45.0,

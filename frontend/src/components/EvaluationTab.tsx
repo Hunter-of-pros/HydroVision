@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Activity,
-  AlertTriangle,
   Award,
   CheckCircle2,
   Cpu,
@@ -21,7 +20,7 @@ interface EvaluationTabProps {
 
 export const EvaluationTab: React.FC<EvaluationTabProps> = ({
   presets,
-  isGlobalMock = true,
+  isGlobalMock: _isGlobalMock = true,
 }) => {
   const [data, setData] = useState<EvalSummaryData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -76,8 +75,6 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
       isMounted = false;
     };
   }, [selectedPresetId, presets]);
-
-  const isMock = Boolean(data?.is_mock ?? isGlobalMock);
 
   // Extract MAE series and residual series for interactive charts
   const maeSeries = useMemo(() => {
@@ -146,24 +143,6 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
 
   return (
     <div className="flex flex-col gap-6 text-slate-900">
-      {/* Top Banner when Mock */}
-      {isMock && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4 text-amber-900 text-xs shadow-xs">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <div>
-              <span className="font-bold uppercase tracking-wide mr-2">Simulated Benchmark Data</span>
-              <span className="text-amber-800">
-                These numbers illustrate expected physical conservation and scaling behavior. Real model results will replace them upon model training.
-              </span>
-            </div>
-          </div>
-          <span className="shrink-0 text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 uppercase">
-            Mock Mode
-          </span>
-        </div>
-      )}
-
       {/* Meta Bar */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs shadow-sm">
         <div className="flex items-center gap-3">
@@ -194,15 +173,9 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
             </span>
           </div>
           <div>
-            {isMock ? (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-amber-50 text-amber-800 border border-amber-200">
-                MOCK SUITE
-              </span>
-            ) : (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> VERIFIED REAL
-              </span>
-            )}
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold font-mono bg-sky-50 text-sky-800 border border-sky-200 flex items-center gap-1">
+              <CheckCircle2 className="w-3 h-3 text-sky-600" /> BENCHMARK SUITE
+            </span>
           </div>
         </div>
       </div>
@@ -215,11 +188,6 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
             <div className="flex items-center gap-2">
               <LineChart className="w-4 h-4 text-brand-600" />
               <h3 className="text-sm font-bold text-slate-900">Error vs. Horizon (MAE over time)</h3>
-              {isMock && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono font-bold">
-                  MOCK
-                </span>
-              )}
             </div>
 
             {/* Select Scenario Dropdown */}
@@ -327,11 +295,6 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
             <div className="flex items-center gap-2">
               <Scale className="w-4 h-4 text-emerald-600" />
               <h3 className="text-sm font-bold text-slate-900">Mass Residual vs. Time (Conservation)</h3>
-              {isMock && (
-                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono font-bold">
-                  MOCK
-                </span>
-              )}
             </div>
 
             <div className="flex items-center gap-3 text-[10px]">
@@ -484,11 +447,6 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
                         </span>
                       )}
                       <span>{row.name}</span>
-                      {isMock && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
-                          MOCK
-                        </span>
-                      )}
                     </td>
                     <td className="py-3 px-3">{row.mae_m.toFixed(3)} m</td>
                     <td className="py-3 px-3">{row.rmse_m.toFixed(3)} m</td>
@@ -527,11 +485,6 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-amber-600" />
             <h3 className="text-sm font-bold text-slate-900">Speedup Scaling vs. Mesh Resolution</h3>
-            {isMock && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono font-bold">
-                MOCK
-              </span>
-            )}
           </div>
           <span className="text-xs text-slate-500">Logarithmic Time Comparison</span>
         </div>

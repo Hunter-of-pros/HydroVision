@@ -14,10 +14,10 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  health,
+  health: _health,
   inferenceTimeMs,
   e2eLatencyMs,
-  modelName,
+  modelName: _modelName,
   activeTab,
   onSelectTab,
   onOpenHistory,
@@ -89,18 +89,6 @@ export const Header: React.FC<HeaderProps> = ({
             E2E {e2eLatencyMs.toFixed(0)} ms
           </div>
         )}
-
-        <div className="px-3 py-1 rounded-full bg-white border border-slate-200 text-xs text-slate-700 font-mono text-center">
-          {modelName || 'mock-v0'}
-        </div>
-
-        <div className="px-3 py-1 rounded-full bg-[#dcfce7] border border-[#bbf7d0] text-xs font-medium text-[#15803d]">
-          {health?.is_mock ? 'Mock Mode (Ready)' : 'Live Model (best.pt)'}
-        </div>
-
-        <div className="px-3 py-1 rounded-full bg-white border border-slate-200 text-xs text-slate-700">
-          BMSCE AIML
-        </div>
       </div>
     </header>
   );

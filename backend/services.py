@@ -24,10 +24,11 @@ def _round_depth_frames(frames: Any) -> Any:
     arr = np.asarray(frames, dtype=np.float64)
     return np.round(arr, 3).tolist()
 
-# Environment mode: "mock" (default) or "real"
+# Environment mode: "real" (default when weights exist) or "mock"
 def get_hydro_mode() -> str:
-    """Return the active HYDRO_MODE setting ('mock' or 'real')."""
-    return os.getenv("HYDRO_MODE", "mock").lower()
+    """Return the active HYDRO_MODE setting ('real' or 'mock')."""
+    default_mode = "real" if Path("artifacts/models/best.pt").exists() else "mock"
+    return os.getenv("HYDRO_MODE", default_mode).lower()
 
 
 def is_mock_mode() -> bool:

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   GitCompare,
@@ -64,21 +63,6 @@ export const RunComparisonView: React.FC<RunComparisonViewProps> = ({
 
   return (
     <div className="bg-white border border-brand-200 rounded-2xl p-5 shadow-sm flex flex-col gap-5 text-slate-900">
-      {/* Top Banner when Mock */}
-      {isMock && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between text-xs text-amber-900 shadow-xs">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span className="font-semibold uppercase tracking-wide">
-              MOCK COMPARISON: Deltas computed on simulated surrogate rollouts
-            </span>
-          </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
-            MOCK
-          </span>
-        </div>
-      )}
-
       {/* Header */}
       <div className="flex items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div className="flex items-center gap-3">

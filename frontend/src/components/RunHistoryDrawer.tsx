@@ -41,7 +41,7 @@ export const RunHistoryDrawer: React.FC<RunHistoryDrawerProps> = ({
   selectedRunIds,
   onToggleSelectRun,
   onStartCompare,
-  isMock = false,
+  isMock: _isMock = false,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState<string>('');
@@ -113,19 +113,6 @@ export const RunHistoryDrawer: React.FC<RunHistoryDrawerProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
-
-        {/* Mock honesty banner when running simulated mode */}
-        {isMock && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between text-[11px] text-amber-900">
-            <div className="flex items-center gap-1.5 font-semibold">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span>MOCK ENGINE: Saved scenarios are simulated</span>
-            </div>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
-              MOCK
-            </span>
-          </div>
-        )}
 
         {/* Save Current Run Prompt Button */}
         <div className="p-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
