@@ -1,6 +1,7 @@
 import React from 'react';
-import { Loader2 } from 'lucide-react';
-import { ForecastParams, PresetItem } from '../types';
+import { Loader2, AlertTriangle, CheckCircle2, AlertOctagon, Car, Info } from 'lucide-react';
+import { ForecastParams, PresetItem, LiveWeatherData } from '../types';
+import { LiveWeatherBox } from './LiveWeatherBox';
 
 interface ControlsProps {
   params: ForecastParams;
@@ -15,6 +16,9 @@ interface ControlsProps {
   canSaveRun: boolean;
   savedRunsCount: number;
   onOpenDrawer: () => void;
+  liveWeather: LiveWeatherData | null;
+  isWeatherLoading: boolean;
+  onRefreshWeather: () => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -30,6 +34,9 @@ export const Controls: React.FC<ControlsProps> = ({
   canSaveRun,
   savedRunsCount,
   onOpenDrawer,
+  liveWeather,
+  isWeatherLoading,
+  onRefreshWeather,
 }) => {
   // Check if current parameters match any preset
   const isPresetActive = (preset: PresetItem) => {
@@ -41,11 +48,82 @@ export const Controls: React.FC<ControlsProps> = ({
     );
   };
 
+  // Handler when user triggers simulation from live weather box
+  const handleSimulateFromWeather = (intensityMmhr: number) => {
+    const clamped = Math.max(20, Math.min(150, Math.round(intensityMmhr)));
+    onChange({ rain_intensity_mmhr: clamped });
+    // Trigger forecast in next tick after state updates
+    setTimeout(() => {
+      onRunForecast();
+    }, 50);
+  };
+
+  // Topographic clogging calculation for Bellandur-Marathahalli DEM
+  const getTopographicClogging = (intensity: number) => {
+    if (intensity <= 35) {
+      return {
+        level: 'Low Risk · Safe Runoff',
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+        barColor: 'bg-emerald-500',
+        depthEst: '< 0.08 m (shallow)',
+        cloggingSummary: 'Natural slope drains water freely into Bellandur lake channels. Zero street waterlogging.',
+        trafficImpact: 'Roads & ORR fully passable. Safe for pedestrians & two-wheelers.',
+        icon: CheckCircle2,
+        iconColor: 'text-emerald-600',
+      };
+    } else if (intensity <= 65) {
+      return {
+        level: 'Moderate Waterlogging · Gutter Overflow',
+        badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+        barColor: 'bg-amber-500',
+        depthEst: '0.12 - 0.25 m (ponding)',
+        cloggingSummary: 'Storm channels begin bottlenecking near Bellandur wetland culverts. Water collects along curb lines.',
+        trafficImpact: 'Slow traffic along service lanes; two-wheeler caution advised.',
+        icon: Info,
+        iconColor: 'text-amber-600',
+      };
+    } else if (intensity <= 95) {
+      return {
+        level: 'Severe Inundation · Arterial Clogging',
+        badgeClass: 'bg-orange-50 text-orange-900 border-orange-200',
+        barColor: 'bg-orange-500',
+        depthEst: '0.35 - 0.65 m (deep)',
+        cloggingSummary: 'Topographic bowl effect traps runoff! Drainage capacity overwhelmed. Deep waterlogging at Outer Ring Road (ORR) underpasses & Eco-space.',
+        trafficImpact: 'Severe traffic gridlock. High risk of vehicle engine stalling in low-lying underpasses.',
+        icon: AlertTriangle,
+        iconColor: 'text-orange-600',
+      };
+    } else {
+      return {
+        level: 'Catastrophic Cloudburst · Extreme Urban Deluge',
+        badgeClass: 'bg-rose-50 text-rose-900 border-rose-200',
+        barColor: 'bg-rose-500',
+        depthEst: '> 0.85 - 1.3 m (submerged)',
+        cloggingSummary: 'Catchment completely drowned! Bellandur lake backflow initiates, submerging major tech parks, roads, and ground floors.',
+        trafficImpact: 'Critical emergency: Arterial roads impassable. Severe vehicle submersion hazard.',
+        icon: AlertOctagon,
+        iconColor: 'text-rose-600',
+      };
+    }
+  };
+
+  const clogging = getTopographicClogging(params.rain_intensity_mmhr);
+  const CloggingIcon = clogging.icon;
+
   return (
     <div className="flex flex-col gap-4 text-slate-900">
+      {/* 0. Real-Time Catchment Weather Box */}
+      <LiveWeatherBox
+        weather={liveWeather}
+        isLoading={isWeatherLoading}
+        onRefresh={onRefreshWeather}
+        onSimulateRain={handleSimulateFromWeather}
+        currentIntensity={params.rain_intensity_mmhr}
+      />
+
       {/* 1. Pick a storm Card */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-        <h3 className="text-xs font-bold text-slate-800">1 · Pick a storm</h3>
+        <h3 className="text-xs font-bold text-slate-800">1 · Pick a storm scenario</h3>
         <div className="flex flex-col gap-2">
           {presets.length === 0 ? (
             [1, 2, 3].map((i) => (
@@ -83,18 +161,25 @@ export const Controls: React.FC<ControlsProps> = ({
         </div>
       </div>
 
-      {/* 2. Tune the rain Card */}
+      {/* 2. Tune the rain & Topographic Clogging Analysis */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-4">
-        <h3 className="text-xs font-bold text-slate-800">2 · Tune the rain</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-800">2 · Tune the rainfall intensity</h3>
+          <span className="text-[10px] text-slate-400 font-medium">Interactive Slider</span>
+        </div>
 
-        {/* Peak Intensity */}
-        <div className="flex flex-col gap-1.5">
+        {/* Peak Intensity Slider */}
+        <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between text-xs font-medium text-slate-700">
-            <span>Peak Intensity</span>
-            <span className="font-bold text-[#0e7490] font-mono">
-              {params.rain_intensity_mmhr} mm/h
-            </span>
+            <span className="font-semibold">Rainfall Rate</span>
+            <div className="flex items-baseline gap-1">
+              <span className="font-black text-[#0e7490] font-mono text-base">
+                {params.rain_intensity_mmhr}
+              </span>
+              <span className="text-xs font-bold text-slate-500">mm/h</span>
+            </div>
           </div>
+
           <input
             type="range"
             min={20}
@@ -102,8 +187,37 @@ export const Controls: React.FC<ControlsProps> = ({
             step={5}
             value={params.rain_intensity_mmhr}
             onChange={(e) => onChange({ rain_intensity_mmhr: Number(e.target.value) })}
-            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0e7490]"
+            className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0e7490]"
           />
+
+          {/* Slider Scale Ticks */}
+          <div className="flex justify-between text-[10px] text-slate-400 font-mono -mt-1 px-0.5">
+            <span>20 mm/h (Safe)</span>
+            <span>65 mm/h (Clog Point)</span>
+            <span>150 mm/h (Deluge)</span>
+          </div>
+
+          {/* Dynamic Topographic Clogging & Waterlogging Card */}
+          <div className={`rounded-xl border p-3 flex flex-col gap-2 transition-all mt-1 ${clogging.badgeClass}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 font-bold text-xs">
+                <CloggingIcon className={`w-4 h-4 ${clogging.iconColor}`} />
+                <span>{clogging.level}</span>
+              </div>
+              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/70 border border-current/20">
+                Depth: {clogging.depthEst}
+              </span>
+            </div>
+
+            <p className="text-[11px] leading-relaxed">
+              {clogging.cloggingSummary}
+            </p>
+
+            <div className="flex items-center gap-1.5 text-[10px] font-medium pt-1 border-t border-current/15">
+              <Car className="w-3.5 h-3.5 shrink-0 opacity-80" />
+              <span>{clogging.trafficImpact}</span>
+            </div>
+          </div>
         </div>
 
         {/* Storm Duration */}
@@ -128,7 +242,7 @@ export const Controls: React.FC<ControlsProps> = ({
         {/* Drain Infiltration Sink */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center justify-between text-xs font-medium text-slate-700">
-            <span>Drain Infiltration Sink</span>
+            <span>Drainage Capacity (Sink Rate)</span>
             <span className="font-bold text-[#0e7490] font-mono">
               {params.drain_capacity_mmhr} mm/h
             </span>
@@ -146,7 +260,7 @@ export const Controls: React.FC<ControlsProps> = ({
 
         {/* Rain Profile (Hyetograph) */}
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-slate-700">Rain Profile (Hyetograph)</span>
+          <span className="text-xs font-medium text-slate-700">Rain Distribution Profile</span>
           <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
             {(['constant', 'triangular', 'double_peak'] as const).map((shape) => (
               <button
@@ -217,4 +331,3 @@ export const Controls: React.FC<ControlsProps> = ({
     </div>
   );
 };
-

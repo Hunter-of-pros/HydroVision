@@ -270,3 +270,25 @@ class EvalSummaryResponse(BaseModel):
     speedup_scaling: List[SpeedupScalingItem]
 
 
+class LiveWeatherResponse(BaseModel):
+    """Real-time weather observation for Marathahalli - Bellandur catchment."""
+
+    location: str = Field("Marathahalli - Bellandur, Bengaluru", description="Catchment observation station name.")
+    latitude: float = Field(12.935, description="Station latitude.")
+    longitude: float = Field(77.69, description="Station longitude.")
+    temperature_c: float = Field(..., description="Current temperature in Celsius.")
+    apparent_temp_c: float = Field(..., description="Apparent feels-like temperature in Celsius.")
+    humidity_pct: float = Field(..., description="Relative humidity percentage.")
+    precipitation_mm: float = Field(..., description="Precipitation accumulation in current measurement window.")
+    rainfall_mmhr: float = Field(..., description="Estimated current rainfall intensity in mm/hr.")
+    weather_code: int = Field(..., description="WMO weather code.")
+    weather_description: str = Field(..., description="Human-readable weather status.")
+    weather_icon: str = Field("☁️", description="Emoji or icon key representing current weather.")
+    is_raining: bool = Field(False, description="True if precipitation is actively falling.")
+    wind_speed_kmh: float = Field(0.0, description="Wind speed at 10m in km/h.")
+    recorded_at: str = Field(..., description="ISO 8601 observation timestamp.")
+    source: str = Field("Open-Meteo Live API", description="Data provider source.")
+    cached: bool = Field(False, description="True if served from backend TTL memory cache.")
+
+
+

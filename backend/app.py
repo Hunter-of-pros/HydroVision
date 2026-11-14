@@ -180,3 +180,15 @@ def get_results() -> Dict[str, Any]:
     return services.get_eval_results()
 
 
+@app.get(
+    "/weather/live",
+    response_model=schemas.LiveWeatherResponse,
+    summary="Retrieve live real-time weather and rainfall rate for Bellandur catchment",
+    tags=["Weather"],
+)
+def get_live_weather() -> Dict[str, Any]:
+    """Return real-time weather observations (temperature, precipitation, mm/hr rainfall) for Bellandur catchment."""
+    return services.get_live_weather()
+
+
+

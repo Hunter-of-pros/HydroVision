@@ -11,7 +11,8 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+import time
+from typing import Any, Dict, List, Optional, Tuple
 from fastapi import HTTPException
 import numpy as np
 
@@ -261,5 +262,127 @@ def get_eval_results() -> Dict[str, Any]:
             raise HTTPException(status_code=500, detail=f"Failed to read mock evaluation results: {e}")
 
     raise HTTPException(status_code=404, detail="Evaluation summary results not found.")
+
+
+# WMO weather code dictionary mapping code -> (description, icon)
+WMO_WEATHER_MAP: Dict[int, Tuple[str, str]] = {
+    0: ("Clear sky", "☀️"),
+    1: ("Mainly clear", "🌤️"),
+    2: ("Partly cloudy", "⛅"),
+    3: ("Overcast", "☁️"),
+    45: ("Foggy", "🌫️"),
+    48: ("Depositing rime fog", "🌫️"),
+    51: ("Light drizzle", "🌦️"),
+    53: ("Moderate drizzle", "🌦️"),
+    55: ("Dense drizzle", "🌧️"),
+    56: ("Light freezing drizzle", "🌧️"),
+    57: ("Dense freezing drizzle", "🌧️"),
+    61: ("Slight rain", "🌧️"),
+    63: ("Moderate rain", "🌧️"),
+    65: ("Heavy rain", "🌧️"),
+    66: ("Light freezing rain", "🌧️"),
+    67: ("Heavy freezing rain", "🌧️"),
+    71: ("Slight snow", "🌨️"),
+    73: ("Moderate snow", "🌨️"),
+    75: ("Heavy snow", "🌨️"),
+    77: ("Snow grains", "🌨️"),
+    80: ("Slight rain showers", "🌦️"),
+    81: ("Moderate rain showers", "🌧️"),
+    82: ("Violent rain showers", "⛈️"),
+    85: ("Slight snow showers", "🌨️"),
+    86: ("Heavy snow showers", "🌨️"),
+    95: ("Thunderstorm", "⛈️"),
+    96: ("Thunderstorm with slight hail", "⛈️"),
+    99: ("Thunderstorm with heavy hail", "⛈️"),
+}
+
+_WEATHER_CACHE: Optional[Dict[str, Any]] = None
+_WEATHER_CACHE_TIME: float = 0.0
+_WEATHER_CACHE_TTL_S: float = 90.0  # 90 seconds TTL cache
+
+
+def get_live_weather() -> Dict[str, Any]:
+    """Retrieve real-time weather observation for Marathahalli - Bellandur from Open-Meteo API.
+
+    Uses an in-memory 90-second TTL cache to prevent upstream API rate limits.
+    Falls back gracefully to a realistic Bengaluru observation if network is unavailable.
+    """
+    global _WEATHER_CACHE, _WEATHER_CACHE_TIME
+    now = time.time()
+    if _WEATHER_CACHE is not None and (now - _WEATHER_CACHE_TIME) < _WEATHER_CACHE_TTL_S:
+        cached_copy = dict(_WEATHER_CACHE)
+        cached_copy["cached"] = True
+        return cached_copy
+
+    lat = 12.935
+    lon = 77.690
+    api_url = (
+        f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
+        "&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,weather_code,wind_speed_10m"
+        "&timezone=Asia%2FKolkata"
+    )
+
+    try:
+        import httpx
+        with httpx.Client(timeout=4.0) as client:
+            resp = client.get(api_url)
+            if resp.status_code == 200:
+                data = resp.json()
+                current = data.get("current", {})
+                w_code = int(current.get("weather_code", 3))
+                desc, icon = WMO_WEATHER_MAP.get(w_code, ("Overcast", "☁️"))
+                precip = float(current.get("precipitation", 0.0))
+                interval = float(current.get("interval", 900.0))
+                # Open-Meteo reports precipitation sum over interval in mm -> convert to mm/hr
+                intensity_mmhr = round(precip * (3600.0 / interval), 1) if interval > 0 else round(precip, 1)
+
+                result = {
+                    "location": "Marathahalli - Bellandur, Bengaluru",
+                    "latitude": lat,
+                    "longitude": lon,
+                    "temperature_c": float(current.get("temperature_2m", 22.0)),
+                    "apparent_temp_c": float(current.get("apparent_temperature", 22.5)),
+                    "humidity_pct": float(current.get("relative_humidity_2m", 75.0)),
+                    "precipitation_mm": precip,
+                    "rainfall_mmhr": intensity_mmhr,
+                    "weather_code": w_code,
+                    "weather_description": desc,
+                    "weather_icon": icon,
+                    "is_raining": intensity_mmhr > 0.1,
+                    "wind_speed_kmh": float(current.get("wind_speed_10m", 8.0)),
+                    "recorded_at": str(current.get("time", "")),
+                    "source": "Open-Meteo Live API",
+                    "cached": False,
+                }
+                _WEATHER_CACHE = result
+                _WEATHER_CACHE_TIME = now
+                return result
+    except Exception:
+        # If cache exists, serve stale cache
+        if _WEATHER_CACHE is not None:
+            cached_copy = dict(_WEATHER_CACHE)
+            cached_copy["cached"] = True
+            return cached_copy
+
+    # Safe fallback if network is completely down
+    return {
+        "location": "Marathahalli - Bellandur, Bengaluru",
+        "latitude": lat,
+        "longitude": lon,
+        "temperature_c": 21.5,
+        "apparent_temp_c": 22.0,
+        "humidity_pct": 82.0,
+        "precipitation_mm": 0.0,
+        "rainfall_mmhr": 0.0,
+        "weather_code": 3,
+        "weather_description": "Overcast",
+        "weather_icon": "☁️",
+        "is_raining": False,
+        "wind_speed_kmh": 7.5,
+        "recorded_at": "Offline / Fallback",
+        "source": "Bengaluru Climate Baseline (Offline)",
+        "cached": False,
+    }
+
 
 

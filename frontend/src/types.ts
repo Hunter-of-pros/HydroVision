@@ -172,7 +172,6 @@ export interface SavedRun {
 }
 
 export interface EvalSummaryData {
-
   generated_at: string;
   hardware: string;
   is_mock: boolean;
@@ -184,6 +183,27 @@ export interface EvalSummaryData {
   error_vs_horizon: ErrorVsHorizonData;
   speedup_scaling: SpeedupScalingItem[];
 }
+
+export interface LiveWeatherData {
+  location: string;
+  latitude: number;
+  longitude: number;
+  temperature_c: number;
+  apparent_temp_c: number;
+  humidity_pct: number;
+  precipitation_mm: number;
+  rainfall_mmhr: number;
+  weather_code: number;
+  weather_description: string;
+  weather_icon: string;
+  is_raining: boolean;
+  wind_speed_kmh: number;
+  recorded_at: string;
+  source: string;
+  cached: boolean;
+  is_offline?: boolean;
+}
+
 
 
 
