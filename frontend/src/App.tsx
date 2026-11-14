@@ -426,16 +426,12 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
-      {/* Persistent Amber Banner: Offline Fallback OR Mock Engine */}
-      {isOfflineFallback ? (
+      {/* Persistent Amber Banner: Offline Fallback */}
+      {isOfflineFallback && (
         <div className="bg-[#fef3c7] border-b border-[#fde68a] text-[#92400e] px-4 py-1.5 text-[11px] font-bold text-center tracking-wider uppercase shadow-xs">
           OFFLINE FALLBACK: SAVED EXAMPLE, NOT A LIVE FORECAST
         </div>
-      ) : isMock ? (
-        <div className="bg-[#fef3c7] border-b border-[#fde68a] text-[#92400e] px-4 py-1.5 text-[11px] font-bold text-center tracking-wider uppercase shadow-xs">
-          MOCK ENGINE: SIMULATED DATA, NOT REAL MODEL RESULTS
-        </div>
-      ) : null}
+      )}
 
       <Header
         health={health}

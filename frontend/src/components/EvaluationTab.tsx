@@ -443,11 +443,6 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-indigo-600" />
             <h3 className="text-sm font-bold text-slate-900">Physics Loss & Rollout Training Ablation Study</h3>
-            {isMock && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-mono font-bold">
-                MOCK DATA
-              </span>
-            )}
           </div>
           <span className="text-[10px] text-slate-500">Evaluated over {data.test_set.n_runs} test storm events</span>
         </div>

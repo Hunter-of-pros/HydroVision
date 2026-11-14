@@ -24,7 +24,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   isSolverComparison: _isSolverComparison = false,
   selectedProbeCell,
   onSelectProbeCell,
-  isMock = false,
+  isMock: _isMock = false,
   isLoading = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -510,53 +510,9 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    if (!isMock) {
-      const link = document.createElement('a');
-      link.download = `hydrovision-flood-map-${Date.now()}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      return;
-    }
-
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = canvas.width;
-    exportCanvas.height = canvas.height;
-    const ctx = exportCanvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.drawImage(canvas, 0, 0);
-
-    ctx.save();
-    ctx.translate(exportCanvas.width / 2, exportCanvas.height / 2);
-    ctx.rotate(-Math.PI / 6);
-    ctx.font = '900 42px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-    ctx.fillText('MOCK DATA', 2, 2);
-
-    ctx.fillStyle = 'rgba(245, 158, 11, 0.85)';
-    ctx.fillText('MOCK DATA', 0, 0);
-
-    ctx.font = 'bold 16px sans-serif';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.fillText('SIMULATED • NOT REAL RESULTS', 0, 36);
-    ctx.restore();
-
-    ctx.save();
-    ctx.fillStyle = 'rgba(180, 83, 9, 0.9)';
-    ctx.fillRect(12, 12, 130, 26);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 12px monospace';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('⚠️ MOCK DATA', 20, 25);
-    ctx.restore();
-
     const link = document.createElement('a');
-    link.download = `hydrovision-mock-flood-map-${Date.now()}.png`;
-    link.href = exportCanvas.toDataURL('image/png');
+    link.download = `hydrovision-flood-map-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
     link.click();
   };
 
