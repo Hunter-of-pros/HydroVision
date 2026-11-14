@@ -36,6 +36,12 @@ export interface ConfigData {
   grid: GridConfig;
   time: TimeConfig;
   wet_threshold_m: number;
+  hazard_thresholds?: {
+    source: string;
+    wet_m: number;
+    impassable_m: number;
+    critical_m: number;
+  };
   params: {
     rain_intensity_mmhr: ParamRange;
     rain_duration_min: ParamRange;
@@ -52,6 +58,7 @@ export interface TerrainData {
   shape: [number, number];
   min_elevation: number;
   max_elevation: number;
+  is_synthetic?: boolean;
 }
 
 export interface ForecastParams {
@@ -85,6 +92,7 @@ export interface ForecastResult {
   cum_drain_m3_series?: number[];
   cum_outflow_m3_series?: number[];
   mass_residual_series?: number[];
+  is_offline_fallback?: boolean;
 }
 
 export interface SolverResult {
@@ -101,6 +109,7 @@ export interface SolverResult {
   cum_drain_m3_series?: number[];
   cum_outflow_m3_series?: number[];
   mass_residual_series?: number[];
+  is_offline_fallback?: boolean;
 }
 
 export interface ComparisonMetrics {
@@ -124,6 +133,7 @@ export interface CompareResult {
   solver: SolverResult;
   metrics: ComparisonMetrics;
   model_name?: string;
+  is_offline_fallback?: boolean;
 }
 
 export interface AblationItem {

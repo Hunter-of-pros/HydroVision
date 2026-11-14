@@ -248,6 +248,11 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           <span className="text-[10px] text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
             64 x 64 ({terrain?.dx_m ?? 40}m/cell)
           </span>
+          {(terrain?.is_synthetic ?? isMock) && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
+              Illustrative terrain
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -312,9 +317,20 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
         {/* Selected Probe Badge */}
         {selectedProbeCell && (
-          <div className="absolute top-3 left-3 bg-cyan-950/90 backdrop-blur border border-cyan-500/50 rounded-lg px-2.5 py-1 text-[11px] text-cyan-300 font-mono shadow flex items-center gap-1.5">
+          <div className="absolute top-3 left-3 bg-cyan-950/90 backdrop-blur border border-cyan-500/50 rounded-lg px-2.5 py-1 text-[11px] text-cyan-300 font-mono shadow flex items-center gap-1.5 z-10">
             <MapPin className="w-3.5 h-3.5 text-cyan-400" />
             <span>Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}]</span>
+          </div>
+        )}
+
+        {/* Synthetic Terrain Indicator Badge */}
+        {(terrain?.is_synthetic ?? isMock) && (
+          <div
+            className={`absolute ${
+              selectedProbeCell ? 'top-11' : 'top-3'
+            } left-3 bg-slate-900/85 backdrop-blur border border-amber-500/40 rounded-lg px-2 py-0.5 text-[10px] font-semibold text-amber-300 font-mono shadow pointer-events-none z-10`}
+          >
+            Illustrative terrain
           </div>
         )}
 

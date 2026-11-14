@@ -10,6 +10,12 @@
     "horizon_steps": 120
   },
   "wet_threshold_m": 0.05,
+  "hazard_thresholds": {
+    "source": "ILLUSTRATIVE, not an official standard",
+    "wet_m": 0.05,
+    "impassable_m": 0.15,
+    "critical_m": 0.30
+  },
   "params": {
     "rain_intensity_mmhr": {
       "min": 20,

@@ -115,12 +115,19 @@ def get_presets() -> Dict[str, Any]:
 )
 def post_forecast(request: schemas.ForecastRequest) -> Dict[str, Any]:
     """Execute rapid neural surrogate flood depth prediction over the 2-hour horizon."""
+    if not services.is_mock_mode():
+        health = services.get_health()
+        if not health.get("model_loaded"):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Surrogate model unavailable: HYDRO_MODE=real is enabled but surrogate model weights (artifacts/models/best.pt) failed to load. The system will not silently fallback to mock data.",
+            )
     try:
         return services.forecast(request.model_dump())
-    except NotImplementedError as e:
+    except (NotImplementedError, FileNotFoundError) as e:
         raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=str(e),
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Surrogate model unavailable: {e}",
         )
     except Exception as e:
         raise HTTPException(
@@ -137,12 +144,19 @@ def post_forecast(request: schemas.ForecastRequest) -> Dict[str, Any]:
 )
 def post_compare(request: schemas.CompareRequest) -> Dict[str, Any]:
     """Run both surrogate and full 2D SWE solver to produce side-by-side comparison and metrics."""
+    if not services.is_mock_mode():
+        health = services.get_health()
+        if not health.get("model_loaded"):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Comparison simulation unavailable: HYDRO_MODE=real is enabled but model weights failed to load.",
+            )
     try:
         return services.compare(request.model_dump())
-    except NotImplementedError as e:
+    except (NotImplementedError, FileNotFoundError) as e:
         raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=str(e),
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Comparison simulation unavailable: {e}",
         )
     except Exception as e:
         raise HTTPException(

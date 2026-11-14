@@ -27,9 +27,28 @@ def test_health_endpoint_real_mode(monkeypatch):
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "ok"
+    # In real mode when model weights are not yet trained/loaded:
+    assert data["status"] == "degraded"
+    assert data["model_loaded"] is False
     assert data["is_mock"] is False
     assert data["contract_version"] == "1.0"
+
+
+def test_forecast_real_mode_unloaded_model_returns_503(monkeypatch):
+    """Verify /forecast returns 503 Service Unavailable when HYDRO_MODE=real but model is not loaded."""
+    monkeypatch.setenv("HYDRO_MODE", "real")
+    response = client.post(
+        "/forecast",
+        json={
+            "rain_intensity_mmhr": 80.0,
+            "rain_duration_min": 45.0,
+            "rain_shape": "constant",
+            "drain_capacity_mmhr": 0.0,
+            "horizon_steps": 120,
+        },
+    )
+    assert response.status_code == 503
+    assert "Surrogate model unavailable" in response.json()["detail"]
 
 
 def test_config_endpoint():

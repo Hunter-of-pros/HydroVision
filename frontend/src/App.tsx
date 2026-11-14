@@ -12,6 +12,7 @@ import { HazardMetrics } from './components/HazardMetrics';
 import { EvaluationTab } from './components/EvaluationTab';
 import {
   fetchHealth,
+  fetchConfig,
   fetchTerrain,
   fetchPresets,
   runForecast,
@@ -19,6 +20,7 @@ import {
 } from './api';
 import {
   CompareResult,
+  ConfigData,
   ForecastParams,
   ForecastResult,
   HealthStatus,
@@ -42,6 +44,7 @@ export const App: React.FC = () => {
   const [isMock, setIsMock] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'simulation' | 'evaluation'>('simulation');
   const [terrain, setTerrain] = useState<TerrainData | null>(null);
+  const [config, setConfig] = useState<ConfigData | null>(null);
   const [presets, setPresets] = useState<PresetItem[]>([]);
 
   const [params, setParams] = useState<ForecastParams>(DEFAULT_PARAMS);
@@ -150,15 +153,17 @@ export const App: React.FC = () => {
     const initialize = async () => {
       try {
         setErrorMessage(null);
-        const [h, t, p] = await Promise.all([
+        const [h, t, p, cfg] = await Promise.all([
           fetchHealth(),
           fetchTerrain(),
           fetchPresets(),
+          fetchConfig().catch(() => null),
         ]);
         setHealth(h);
         setIsMock(Boolean(h?.is_mock));
         setTerrain(t);
         setPresets(p);
+        if (cfg) setConfig(cfg);
 
         // Run initial default forecast so map is populated immediately
         const startTime = performance.now();
@@ -384,15 +389,24 @@ export const App: React.FC = () => {
     );
   }, [selectedProbeCell, forecastResult]);
 
+  const isOfflineFallback = Boolean(
+    forecastResult?.is_offline_fallback || compareResult?.is_offline_fallback
+  );
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
-      {/* Persistent Amber Mock-Mode Banner */}
-      {isMock && (
+      {/* Persistent Amber Banner: Offline Fallback OR Mock Engine */}
+      {isOfflineFallback ? (
+        <div className="bg-amber-500/20 border-b border-amber-500/40 text-amber-200 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>OFFLINE FALLBACK: saved example, not a live forecast</span>
+        </div>
+      ) : isMock ? (
         <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
           <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
           <span>MOCK ENGINE: simulated data, not real model results</span>
         </div>
-      )}
+      ) : null}
 
       <Header
         health={health}
@@ -443,8 +457,11 @@ export const App: React.FC = () => {
           <EvaluationTab presets={presets} isGlobalMock={isMock} />
         ) : (
           <>
-            {/* Hazard Risk Summary Bar */}
-            <HazardMetrics depthFrame={activeDepthFrame} />
+            {/* Illustrative Hazard Risk Assessment Bar */}
+            <HazardMetrics
+              depthFrame={activeDepthFrame}
+              thresholds={config?.hazard_thresholds}
+            />
 
             {/* Scenario Comparison View, Solver Verification View, or Main Simulation View */}
             {activeRunComparison ? (

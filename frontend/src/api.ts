@@ -64,8 +64,45 @@ async function fetchJson<T>(
   }
 }
 
+function isOfflineOrServerError(err: any): boolean {
+  if (!err) return false;
+  const msg = String(err.message || err);
+  return (
+    msg.includes('Failed to fetch') ||
+    msg.includes('fetch failed') ||
+    msg.includes('NetworkError') ||
+    msg.includes('Network error') ||
+    msg.includes('[500 ') ||
+    msg.includes('[502 ') ||
+    msg.includes('[503 ') ||
+    msg.includes('[504 ') ||
+    msg.includes('Surrogate model unavailable') ||
+    msg.includes('Comparison simulation unavailable') ||
+    msg.includes('status 50')
+  );
+}
+
+async function fetchFallback<T>(fixturePath: string): Promise<T> {
+  // Load saved reference fixture directly from Vite public directory
+  const response = await fetch(fixturePath);
+  if (!response.ok) {
+    throw new Error(`Failed to load offline fallback fixture: ${fixturePath}`);
+  }
+  return response.json() as Promise<T>;
+}
+
 export async function fetchHealth(): Promise<HealthStatus> {
-  return fetchJson<HealthStatus>('/health');
+  try {
+    return await fetchJson<HealthStatus>('/health');
+  } catch {
+    // If backend is completely offline, return offline health state
+    return {
+      status: 'offline',
+      model_loaded: false,
+      is_mock: true,
+      contract_version: '1.0',
+    };
+  }
 }
 
 export async function fetchConfig(): Promise<ConfigData> {
@@ -73,16 +110,34 @@ export async function fetchConfig(): Promise<ConfigData> {
 }
 
 export async function fetchTerrain(): Promise<TerrainData> {
-  return fetchJson<TerrainData>('/terrain');
+  try {
+    return await fetchJson<TerrainData>('/terrain');
+  } catch (err: any) {
+    if (isOfflineOrServerError(err)) {
+      console.warn('Network error fetching /terrain. Using offline DEM fixture.');
+      return await fetchFallback<TerrainData>('/terrain_fixture.json');
+    }
+    throw err;
+  }
 }
 
 export async function fetchPresets(forceRefresh = false): Promise<PresetItem[]> {
   if (presetsCache && !forceRefresh) {
     return presetsCache;
   }
-  const res = await fetchJson<{ presets: PresetItem[] }>('/presets');
-  presetsCache = res.presets;
-  return res.presets;
+  try {
+    const res = await fetchJson<{ presets: PresetItem[] }>('/presets');
+    presetsCache = res.presets;
+    return res.presets;
+  } catch (err: any) {
+    if (isOfflineOrServerError(err)) {
+      console.warn('Network error fetching /presets. Using offline presets fixture.');
+      const fallback = await fetchFallback<{ presets: PresetItem[] }>('/presets_fixture.json');
+      presetsCache = fallback.presets;
+      return fallback.presets;
+    }
+    throw err;
+  }
 }
 
 export function clearPresetsCache(): void {
@@ -93,28 +148,54 @@ export async function runForecast(
   params: ForecastParams,
   signal?: AbortSignal
 ): Promise<ForecastResult> {
-  return fetchJson<ForecastResult>(
-    '/forecast',
-    {
-      method: 'POST',
-      body: JSON.stringify(params),
-    },
-    signal
-  );
+  try {
+    return await fetchJson<ForecastResult>(
+      '/forecast',
+      {
+        method: 'POST',
+        body: JSON.stringify(params),
+      },
+      signal
+    );
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw err;
+    }
+    if (isOfflineOrServerError(err)) {
+      console.warn('Backend unavailable (network error or 5xx). Loading offline forecast fixture.');
+      const fallback = await fetchFallback<ForecastResult>('/forecast_fixture.json');
+      fallback.is_offline_fallback = true;
+      return fallback;
+    }
+    throw err;
+  }
 }
 
 export async function runCompare(
   params: ForecastParams,
   signal?: AbortSignal
 ): Promise<CompareResult> {
-  return fetchJson<CompareResult>(
-    '/compare',
-    {
-      method: 'POST',
-      body: JSON.stringify(params),
-    },
-    signal
-  );
+  try {
+    return await fetchJson<CompareResult>(
+      '/compare',
+      {
+        method: 'POST',
+        body: JSON.stringify(params),
+      },
+      signal
+    );
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw err;
+    }
+    if (isOfflineOrServerError(err)) {
+      console.warn('Backend unavailable (network error or 5xx). Loading offline compare fixture.');
+      const fallback = await fetchFallback<CompareResult>('/compare_fixture.json');
+      fallback.is_offline_fallback = true;
+      return fallback;
+    }
+    throw err;
+  }
 }
 
 export async function fetchResults(): Promise<EvalSummaryData> {

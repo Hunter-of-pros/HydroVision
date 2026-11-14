@@ -50,17 +50,33 @@ def get_health() -> Dict[str, Any]:
     mock_active = is_mock_mode()
     model_loaded = False
     contract_ver = "1.0"
-    try:
-        info = ml.get_model_info()
-        mock_active = bool(info.get("is_mock", mock_active))
-        model_loaded = True
-        contract_ver = str(info.get("contract_version", "1.0"))
-    except Exception:
-        # In real mode when weights are not yet loaded, model_loaded is False
-        model_loaded = False
+    status_str = "ok"
+
+    if not mock_active:
+        # In real mode: do NOT silently fallback to mock if model fails to load
+        try:
+            info = ml.get_model_info()
+            model_loaded = bool(info.get("model_loaded", True))
+            contract_ver = str(info.get("contract_version", "1.0"))
+            mock_active = bool(info.get("is_mock", False))
+            status_str = "ok" if model_loaded else "degraded"
+        except Exception:
+            model_loaded = False
+            status_str = "degraded"
+            mock_active = False
+    else:
+        try:
+            info = ml.get_model_info()
+            model_loaded = True
+            contract_ver = str(info.get("contract_version", "1.0"))
+            mock_active = True
+            status_str = "ok"
+        except Exception:
+            model_loaded = False
+            status_str = "degraded"
 
     return {
-        "status": "ok",
+        "status": status_str,
         "model_loaded": model_loaded,
         "is_mock": mock_active,
         "contract_version": contract_ver,
@@ -74,7 +90,10 @@ def get_config() -> Dict[str, Any]:
 
 def get_terrain() -> Dict[str, Any]:
     """Retrieve digital elevation model and geographic bounds."""
-    return get_ml_module().get_terrain()
+    data = get_ml_module().get_terrain()
+    if "is_synthetic" not in data:
+        data["is_synthetic"] = is_mock_mode()
+    return data
 
 
 def get_presets() -> List[Dict[str, Any]]:

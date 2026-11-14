@@ -30,6 +30,16 @@ class TimeConfig(BaseModel):
     horizon_steps: int = Field(120, description="Total number of prediction intervals.")
 
 
+class HazardThresholdsConfig(BaseModel):
+    source: str = Field(
+        "ILLUSTRATIVE, not an official standard",
+        description="Source disclaimer regarding classification authority.",
+    )
+    wet_m: float = Field(0.05, description="Surface runoff wet cell threshold in meters.")
+    impassable_m: float = Field(0.15, description="Illustrative vehicle/pedestrian threshold (15 cm).")
+    critical_m: float = Field(0.30, description="Illustrative deep inundation threshold (30 cm).")
+
+
 class ConfigResponse(BaseModel):
     """Simulation parameters and configuration contract."""
 
@@ -37,6 +47,7 @@ class ConfigResponse(BaseModel):
     grid: GridConfig
     time: TimeConfig
     wet_threshold_m: float = 0.05
+    hazard_thresholds: Optional[HazardThresholdsConfig] = None
     params: Dict[str, Any]
 
 
@@ -55,6 +66,10 @@ class TerrainResponse(BaseModel):
     shape: List[int] = Field([64, 64], description="Grid dimensions [rows, cols].")
     min_elevation: float = Field(..., description="Minimum elevation in meters.")
     max_elevation: float = Field(..., description="Maximum elevation in meters.")
+    is_synthetic: Optional[bool] = Field(
+        True,
+        description="True if digital elevation model is synthetic/illustrative.",
+    )
 
 
 class ForecastRequest(BaseModel):
