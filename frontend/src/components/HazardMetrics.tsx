@@ -148,3 +148,4 @@ export const HazardMetrics: React.FC<HazardMetricsProps> = ({
     </div>
   );
 };
+
