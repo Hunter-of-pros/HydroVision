@@ -1,7 +1,8 @@
-.PHONY: help setup test mock-backend real-backend fixtures smoke clean frontend-install frontend-dev frontend-build
+.PHONY: help setup dev test mock-backend real-backend fixtures smoke clean frontend-install frontend-dev frontend-build
 
 help:
 	@echo "HydroVision Development Tasks"
+	@echo "  make dev              One-command run: start backend & frontend together"
 	@echo "  make setup            Install project dependencies via pip"
 	@echo "  make test             Run pytest suite (runs real tests + xfails stubs)"
 	@echo "  make mock-backend     Start FastAPI server in mock mode (port 8000)"
@@ -15,6 +16,9 @@ help:
 
 setup:
 	pip install -r requirements.txt
+
+dev:
+	./scripts/dev.sh
 
 test:
 	pytest -v

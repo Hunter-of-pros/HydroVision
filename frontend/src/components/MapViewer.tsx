@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Compass, Layers, Download, MapPin } from 'lucide-react';
+import { Compass, Layers, Download, MapPin, Loader2 } from 'lucide-react';
 import { TerrainData } from '../types';
 
 interface MapViewerProps {
@@ -9,6 +9,8 @@ interface MapViewerProps {
   isSolverComparison?: boolean;
   selectedProbeCell?: { row: number; col: number } | null;
   onSelectProbeCell?: (cell: { row: number; col: number; elevation: number } | null) => void;
+  isMock?: boolean;
+  isLoading?: boolean;
 }
 
 export const MapViewer: React.FC<MapViewerProps> = ({
@@ -18,6 +20,8 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   isSolverComparison = false,
   selectedProbeCell,
   onSelectProbeCell,
+  isMock = false,
+  isLoading = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hoverCell, setHoverCell] = useState<{
@@ -173,9 +177,60 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    if (!isMock) {
+      const link = document.createElement('a');
+      link.download = `hydrovision-flood-map-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      return;
+    }
+
+    // Stamp visible "MOCK DATA" watermark on exported image when mock
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+    const ctx = exportCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Draw base map frame
+    ctx.drawImage(canvas, 0, 0);
+
+    // Diagonal semi-transparent watermark across center
+    ctx.save();
+    ctx.translate(exportCanvas.width / 2, exportCanvas.height / 2);
+    ctx.rotate(-Math.PI / 6);
+    ctx.font = '900 42px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillText('MOCK DATA', 2, 2);
+
+    // Main watermark text
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.85)';
+    ctx.fillText('MOCK DATA', 0, 0);
+
+    // Subtitle
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillText('SIMULATED • NOT REAL RESULTS', 0, 36);
+    ctx.restore();
+
+    // Top-left prominent badge
+    ctx.save();
+    ctx.fillStyle = 'rgba(180, 83, 9, 0.9)';
+    ctx.fillRect(12, 12, 130, 26);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚠️ MOCK DATA', 20, 25);
+    ctx.restore();
+
     const link = document.createElement('a');
-    link.download = `hydrovision-flood-map-${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.download = `hydrovision-mock-flood-map-${Date.now()}.png`;
+    link.href = exportCanvas.toDataURL('image/png');
     link.click();
   };
 
@@ -193,6 +248,11 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           <span className="text-[10px] text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
             64 x 64 ({terrain?.dx_m ?? 40}m/cell)
           </span>
+          {(terrain?.is_synthetic ?? isMock) && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300">
+              Illustrative terrain
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -222,15 +282,32 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
       {/* Canvas Map Container */}
       <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
-        <canvas
-          ref={canvasRef}
-          width={512}
-          height={512}
-          onClick={handleCanvasClick}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          className="w-full h-full object-contain cursor-crosshair"
-        />
+        {!terrain ? (
+          <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center gap-3 animate-pulse p-6 text-slate-500">
+            <div className="w-10 h-10 rounded-full border-2 border-brand-500/40 border-t-brand-400 animate-spin" />
+            <span className="text-xs font-mono">Loading DEM terrain raster...</span>
+          </div>
+        ) : (
+          <canvas
+            ref={canvasRef}
+            width={512}
+            height={512}
+            onClick={handleCanvasClick}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className="w-full h-full object-contain cursor-crosshair"
+          />
+        )}
+
+        {/* Loading Overlay when rolling out inference */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none z-20">
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-slate-900/90 border border-brand-500/40 text-brand-300 text-xs font-semibold shadow-2xl">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-400" />
+              <span>Simulating surrogate...</span>
+            </div>
+          </div>
+        )}
 
         {/* North Arrow Indicator */}
         <div className="absolute top-3 right-3 p-1.5 rounded-xl bg-slate-900/80 backdrop-blur border border-slate-700/60 shadow flex flex-col items-center pointer-events-none">
@@ -240,9 +317,20 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
         {/* Selected Probe Badge */}
         {selectedProbeCell && (
-          <div className="absolute top-3 left-3 bg-cyan-950/90 backdrop-blur border border-cyan-500/50 rounded-lg px-2.5 py-1 text-[11px] text-cyan-300 font-mono shadow flex items-center gap-1.5">
+          <div className="absolute top-3 left-3 bg-cyan-950/90 backdrop-blur border border-cyan-500/50 rounded-lg px-2.5 py-1 text-[11px] text-cyan-300 font-mono shadow flex items-center gap-1.5 z-10">
             <MapPin className="w-3.5 h-3.5 text-cyan-400" />
             <span>Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}]</span>
+          </div>
+        )}
+
+        {/* Synthetic Terrain Indicator Badge */}
+        {(terrain?.is_synthetic ?? isMock) && (
+          <div
+            className={`absolute ${
+              selectedProbeCell ? 'top-11' : 'top-3'
+            } left-3 bg-slate-900/85 backdrop-blur border border-amber-500/40 rounded-lg px-2 py-0.5 text-[10px] font-semibold text-amber-300 font-mono shadow pointer-events-none z-10`}
+          >
+            Illustrative terrain
           </div>
         )}
 

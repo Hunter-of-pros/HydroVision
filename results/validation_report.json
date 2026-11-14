@@ -1,0 +1,133 @@
+{
+  "timestamp": "2026-11-14T11:18:20.686918+00:00",
+  "mode": "mock",
+  "overall_pass": true,
+  "pass_count": 8,
+  "total_count": 8,
+  "thresholds": {
+    "max_latency_ms": 2000.0,
+    "surrogate_residual_threshold": 0.05,
+    "solver_residual_threshold": 0.01
+  },
+  "cases": [
+    {
+      "test_number": 1,
+      "case_id": "preset_moderate",
+      "case_name": "Preset 1: Moderate Summer Storm",
+      "passed": true,
+      "deterministic": true,
+      "stats": {
+        "shape": "(121, 64, 64)",
+        "min_depth": 0.0,
+        "max_depth": 0.1534,
+        "latency_ms": 38.5,
+        "max_residual": 0.002,
+        "payload_mb": 3.26
+      },
+      "errors": []
+    },
+    {
+      "test_number": 2,
+      "case_id": "preset_cloudburst",
+      "case_name": "Preset 2: Extreme Cloudburst",
+      "passed": true,
+      "deterministic": true,
+      "stats": {
+        "shape": "(121, 64, 64)",
+        "min_depth": 0.0,
+        "max_depth": 0.0939,
+        "latency_ms": 38.5,
+        "max_residual": 0.00185,
+        "payload_mb": 3.23
+      },
+      "errors": []
+    },
+    {
+      "test_number": 3,
+      "case_id": "preset_drain_mitigation",
+      "case_name": "Preset 3: Engineered Drain Mit.",
+      "passed": true,
+      "deterministic": true,
+      "stats": {
+        "shape": "(121, 64, 64)",
+        "min_depth": 0.0,
+        "max_depth": 0.1401,
+        "latency_ms": 38.5,
+        "max_residual": 0.00137,
+        "payload_mb": 3.26
+      },
+      "errors": []
+    },
+    {
+      "test_number": 4,
+      "case_id": "bound_min_values",
+      "case_name": "Boundary Min (Rain=20, Dur=15)",
+      "passed": true,
+      "deterministic": true,
+      "stats": {
+        "shape": "(121, 64, 64)",
+        "min_depth": 0.0,
+        "max_depth": 0.017,
+        "latency_ms": 38.5,
+        "max_residual": 0.002,
+        "payload_mb": 3.21
+      },
+      "errors": []
+    },
+    {
+      "test_number": 5,
+      "case_id": "bound_max_values",
+      "case_name": "Boundary Max (Rain=150, Dur=90)",
+      "passed": true,
+      "deterministic": true,
+      "stats": {
+        "shape": "(121, 64, 64)",
+        "min_depth": 0.0,
+        "max_depth": 0.6129,
+        "latency_ms": 38.5,
+        "max_residual": 0.0016,
+        "payload_mb": 3.27
+      },
+      "errors": []
+    },
+    {
+      "test_number": 6,
+      "case_id": "shape_double_peak",
+      "case_name": "Hyetograph: Double Peak Storm",
+      "passed": true,
+      "deterministic": true,
+      "stats": {
+        "shape": "(121, 64, 64)",
+        "min_depth": 0.0,
+        "max_depth": 0.1147,
+        "latency_ms": 38.5,
+        "max_residual": 0.002,
+        "payload_mb": 3.23
+      },
+      "errors": []
+    },
+    {
+      "test_number": 7,
+      "case_id": "swe_solver",
+      "case_name": "SWE Solver Ground Truth",
+      "passed": true,
+      "deterministic": true,
+      "stats": {
+        "solve_time_s": 1.52,
+        "max_residual": "2.9606e-16"
+      },
+      "errors": []
+    },
+    {
+      "test_number": 8,
+      "case_id": "comparative_metrics",
+      "case_name": "Comparative Evaluation Suite",
+      "passed": true,
+      "deterministic": true,
+      "stats": {
+        "metrics_count": 11
+      },
+      "errors": []
+    }
+  ]
+}

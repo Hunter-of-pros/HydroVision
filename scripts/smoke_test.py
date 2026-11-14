@@ -73,6 +73,11 @@ def _run_via_testclient() -> List[Tuple[str, str, int, int, str]]:
     ok = resp.status_code == 200 and "metrics" in resp.json()
     results.append(("POST", "/compare", 200, resp.status_code, "PASS" if ok else "FAIL"))
 
+    # 7. GET /results (expects 200)
+    resp = client.get("/results")
+    ok = resp.status_code == 200 and "ablation" in resp.json()
+    results.append(("GET", "/results", 200, resp.status_code, "PASS" if ok else "FAIL"))
+
     return results
 
 
@@ -128,7 +133,12 @@ def _run_via_http(base_url: str) -> List[Tuple[str, str, int, int, str]]:
         ok = resp.status_code == 200 and "metrics" in resp.json()
         results.append(("POST", "/compare", 200, resp.status_code, "PASS" if ok else "FAIL"))
 
-    return results
+        # 7. GET /results
+        resp = client.get("/results")
+        ok = resp.status_code == 200 and "ablation" in resp.json()
+        results.append(("GET", "/results", 200, resp.status_code, "PASS" if ok else "FAIL"))
+
+        return results
 
 
 def main() -> None:

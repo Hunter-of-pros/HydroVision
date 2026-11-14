@@ -20,6 +20,7 @@ htmlcov/
 # Node / Frontend
 node_modules/
 dist/
+.vite/
 .DS_Store
 
 # Artifacts & Heavy Data (Keep .gitkeep)

@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 
 from backend import schemas, services
 
@@ -19,6 +21,29 @@ app = FastAPI(
     description="Physics-informed neural surrogate backend for real-time urban flood forecasting.",
     version="1.0.0",
 )
+
+# Exception handler for clear, readable Pydantic 422 validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Format Pydantic schema validation failures into clean, descriptive error messages."""
+    messages = []
+    for err in exc.errors():
+        field = " -> ".join(str(part) for part in err.get("loc", []) if part != "body")
+        msg = err.get("msg", "Invalid value")
+        input_val = err.get("input", None)
+        if input_val is not None and not isinstance(input_val, dict):
+            messages.append(f"Field '{field}': {msg} (received {input_val})")
+        else:
+            messages.append(f"Field '{field}': {msg}")
+    error_summary = "; ".join(messages)
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": error_summary,
+            "errors": exc.errors(),
+            "message": error_summary,
+        },
+    )
 
 # Enable GZip compression for high-dimensional depth frame payloads
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -90,12 +115,19 @@ def get_presets() -> Dict[str, Any]:
 )
 def post_forecast(request: schemas.ForecastRequest) -> Dict[str, Any]:
     """Execute rapid neural surrogate flood depth prediction over the 2-hour horizon."""
+    if not services.is_mock_mode():
+        health = services.get_health()
+        if not health.get("model_loaded"):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Surrogate model unavailable: HYDRO_MODE=real is enabled but surrogate model weights (artifacts/models/best.pt) failed to load. The system will not silently fallback to mock data.",
+            )
     try:
         return services.forecast(request.model_dump())
-    except NotImplementedError as e:
+    except (NotImplementedError, FileNotFoundError) as e:
         raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=str(e),
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Surrogate model unavailable: {e}",
         )
     except Exception as e:
         raise HTTPException(
@@ -112,16 +144,39 @@ def post_forecast(request: schemas.ForecastRequest) -> Dict[str, Any]:
 )
 def post_compare(request: schemas.CompareRequest) -> Dict[str, Any]:
     """Run both surrogate and full 2D SWE solver to produce side-by-side comparison and metrics."""
+    if not services.is_mock_mode():
+        health = services.get_health()
+        if not health.get("model_loaded"):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Comparison simulation unavailable: HYDRO_MODE=real is enabled but model weights failed to load.",
+            )
     try:
         return services.compare(request.model_dump())
-    except NotImplementedError as e:
+    except (NotImplementedError, FileNotFoundError) as e:
         raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail=str(e),
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Comparison simulation unavailable: {e}",
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Comparison simulation failed: {e}",
         )
+
+
+@app.get(
+    "/results",
+    response_model=schemas.EvalSummaryResponse,
+    summary="Retrieve empirical evaluation and ablation benchmark summary",
+    tags=["Evaluation"],
+)
+def get_results() -> Dict[str, Any]:
+    """Serve empirical evaluation benchmark results.
+
+    Returns results/eval_summary.json if available; otherwise falls back to
+    results/eval_summary.mock.json with is_mock=True. Returns 404 if neither exists.
+    """
+    return services.get_eval_results()
+
 

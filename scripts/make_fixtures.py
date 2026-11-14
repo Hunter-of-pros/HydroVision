@@ -54,6 +54,11 @@ def generate_fixtures() -> None:
         "inference_time_ms": full_forecast["inference_time_ms"],
         "model_name": full_forecast["model_name"],
         "frame_stride": 30,
+        "volume_m3_series": [full_forecast["volume_m3_series"][i] for i in stride_indices],
+        "cum_rain_m3_series": [full_forecast["cum_rain_m3_series"][i] for i in stride_indices],
+        "cum_drain_m3_series": [full_forecast["cum_drain_m3_series"][i] for i in stride_indices],
+        "cum_outflow_m3_series": [full_forecast["cum_outflow_m3_series"][i] for i in stride_indices],
+        "mass_residual_series": [full_forecast["mass_residual_series"][i] for i in stride_indices],
     }
 
     forecast_path = fixtures_dir / "forecast_example.json"
@@ -63,9 +68,8 @@ def generate_fixtures() -> None:
 
     print("[2/2] Generating fixtures/compare_example.json from mock...")
     # Fast solver mock run (without slow sleep for fixture generation)
-    # Using internal helper directly to avoid 1.5s delay during build
     rain_series = mock._build_rain_series(45.0, 80.0, "constant", 120)
-    solv_frames, solv_peak, _ = mock._simulate_water_spread(
+    solv_frames, solv_peak, _, solv_budget = mock._simulate_water_spread(
         rain_series=rain_series,
         drain_capacity_mmhr=0.0,
         horizon_steps=120,
@@ -79,6 +83,11 @@ def generate_fixtures() -> None:
         "solve_time_s": 1.52,
         "solver_name": "swe-local-inertial-mock",
         "frame_stride": 30,
+        "volume_m3_series": [solv_budget["volume_m3_series"][i] for i in stride_indices],
+        "cum_rain_m3_series": [solv_budget["cum_rain_m3_series"][i] for i in stride_indices],
+        "cum_drain_m3_series": [solv_budget["cum_drain_m3_series"][i] for i in stride_indices],
+        "cum_outflow_m3_series": [solv_budget["cum_outflow_m3_series"][i] for i in stride_indices],
+        "mass_residual_series": [solv_budget["mass_residual_series"][i] for i in stride_indices],
     }
 
     metrics = mock.compute_metrics(
