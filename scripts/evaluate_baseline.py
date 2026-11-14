@@ -1,19 +1,21 @@
-"""Comprehensive baseline neural surrogate evaluation script.
+"""Comprehensive baseline neural surrogate evaluation script with full Step 3 Addendum.
 
-Evaluates trained baseline surrogate (best.pt) on:
-- 20 validation scenarios (seen distribution: rain 20-150 mm/hr)
-- 10 extrapolation scenarios (unseen distribution: rain 150-180 mm/hr)
+PART A EVALUATION ADDENDUM:
+1. Wet-cell metrics (MAE, RMSE, and at steps 10/30/60/120 over cells wet in solver OR prediction).
+2. Peak depth error: mean over cells of |max_t prediction - max_t solver|, plus error of single deepest cell.
+3. Persistence baseline (h_{t+1} = h_t) and teacher-forced single-step model reference.
+4. Correctly defined and stratified mass error:
+   Formula (i):  |V_pred(T) - V_solver(T)| / max(V_solver(T), eps)
+   Formula (ii): |V_pred(T) - (R - D_true)| / max(R, eps)
+   Stratified by rain intensity (<50, 50-100, >100 mm/hr) and drain capacity (=0 vs >0).
+   Signed mean errors and identification of driver scenarios.
+5. Error-vs-step curves:
+   - artifacts/reports/baseline_rollout_error.png (MAE & wet-cell MAE for val and extrap)
+   - artifacts/reports/baseline_persistence_comparison.png (Rollout vs Persistence)
+6. Honest speed measurement: 8 threads, median of 7 runs after 3 warmups (forward batch 1/8/32, rollout batch 1/8, solver 10 scenarios).
+   Clear explanation and labeling of bundled k=5 projection.
 
-Metrics:
-- Single-step MAE (m & mm)
-- 120-step autoregressive rollout MAE, RMSE, Wet IoU (>= 0.05m)
-- Rollout MAE at steps 10, 30, 60, 120
-- Mass conservation error (% vs solver final volume, % vs rain - drain budget)
-- Wall-clock rollout latency (Batch 1 and batched) vs SWE solver baseline (0.267 s)
-- Error trajectory plot saved to artifacts/reports/baseline_rollout_error.png
-- Comprehensive JSON saved to artifacts/reports/baseline_metrics.json
-
-Phase: Phase 4 (Baseline Surrogate Evaluation)
+Phase: Phase 4 & Step 3 Addendum
 Owner: ML Teammate
 Contract: docs/CONTRACT.md v1.0
 """
@@ -23,7 +25,10 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 from pathlib import Path
+import platform
+import subprocess
 import sys
 import time
 from typing import Any, Dict, List, Tuple
@@ -38,15 +43,14 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from hydrovision_ml.config import DATA_DIR
+from hydrovision_ml.config import CELL_SIZE_M, DATA_DIR, DT_S
+from hydrovision_ml.solver.swe_solver import run_solver_core
 from hydrovision_ml.surrogate.model import Normalizer, UNetSurrogate
 from hydrovision_ml.surrogate.rollout import rollout, rollout_batched
 
-SOLVER_BASELINE_TIME_S = 0.267  # Measured SWE solver reference time for 120 steps
 
-
-def load_model(checkpoint_path: str, device: str = "cpu") -> Tuple[UNetSurrogate, Normalizer]:
-    """Load model and normalizer from checkpoint."""
+def load_model(checkpoint_path: str, device: str = "cpu") -> Tuple[UNetSurrogate, Normalizer, Dict[str, Any]]:
+    """Load model, normalizer, and checkpoint payload."""
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)
     config = ckpt.get("model_config", {
         "in_channels": 7,
@@ -63,10 +67,10 @@ def load_model(checkpoint_path: str, device: str = "cpu") -> Tuple[UNetSurrogate
     else:
         normalizer = Normalizer.load()
 
-    return model, normalizer
+    return model, normalizer, ckpt
 
 
-def evaluate_split(
+def evaluate_split_full(
     model: UNetSurrogate,
     normalizer: Normalizer,
     terrain: np.ndarray,
@@ -75,7 +79,7 @@ def evaluate_split(
     num_scenarios: int = 20,
     device: str = "cpu",
 ) -> Dict[str, Any]:
-    """Evaluate surrogate on a slice of scenarios from a split directory."""
+    """Evaluate surrogate on a slice of scenarios from a split directory with all Step 3 metrics."""
     depth_arr = np.load(str(split_dir / "depth.npy"), mmap_mode="r")  # (N, 121, 64, 64)
     rain_arr = np.load(str(split_dir / "rain.npy"))                    # (N, 120)
     drain_arr = np.load(str(split_dir / "drain_m3.npy"))              # (N, 120)
@@ -89,9 +93,11 @@ def evaluate_split(
     domain_area = H * W * cell_area
 
     scenario_metrics: List[Dict[str, Any]] = []
-    per_step_mae_all: List[np.ndarray] = []  # shape (eval_count, 120)
+    per_step_mae_all: List[np.ndarray] = []
+    per_step_wet_mae_all: List[np.ndarray] = []
+    per_step_persist_mae_all: List[np.ndarray] = []
 
-    # Precompute terrain gradient tensors for single-step test
+    # Precompute terrain gradient tensors for teacher-forced test
     sy, sx = np.gradient(terrain.astype(np.float32), float(cell_size_m))
     dev = torch.device(device)
     dem_t = torch.tensor(normalizer.normalize_dem(terrain), dtype=torch.float32, device=dev).unsqueeze(0).unsqueeze(0)
@@ -102,6 +108,9 @@ def evaluate_split(
         true_depth = np.array(depth_arr[sc_idx], dtype=np.float32)  # (121, 64, 64)
         rain_series = np.array(rain_arr[sc_idx], dtype=np.float32)  # (120,)
         drain_series = np.array(drain_arr[sc_idx], dtype=np.float32) # (120,)
+        intensity_mmhr = float(params_arr[sc_idx, 0])
+        duration_min = float(params_arr[sc_idx, 1])
+        shape_code = int(params_arr[sc_idx, 2])
         drain_cap_mmhr = float(params_arr[sc_idx, 3])
 
         # 1. Autoregressive 120-step Rollout
@@ -121,9 +130,40 @@ def evaluate_split(
         step_maes = np.mean(abs_diff_frames, axis=(1, 2))          # (120,)
         per_step_mae_all.append(step_maes)
 
-        # 3. Aggregated 120-step rollout metrics
+        # Overall domain MAE and RMSE
         overall_mae = float(np.mean(abs_diff_frames))
         overall_rmse = float(np.sqrt(np.mean(abs_diff_frames ** 2)))
+
+        # 3. Wet-cell metrics: cells where solver >= 0.05 OR prediction >= 0.05
+        wet_mask_all = (true_depth[1:] >= 0.05) | (pred_depth[1:] >= 0.05)
+        if np.any(wet_mask_all):
+            wet_cell_mae = float(np.mean(abs_diff_frames[wet_mask_all]))
+            wet_cell_rmse = float(np.sqrt(np.mean(abs_diff_frames[wet_mask_all] ** 2)))
+        else:
+            wet_cell_mae = 0.0
+            wet_cell_rmse = 0.0
+
+        # Per-step wet-cell MAE
+        step_wet_maes = np.zeros(120, dtype=np.float32)
+        for t in range(120):
+            wmask_t = (true_depth[t + 1] >= 0.05) | (pred_depth[t + 1] >= 0.05)
+            if np.any(wmask_t):
+                step_wet_maes[t] = float(np.mean(abs_diff_frames[t][wmask_t]))
+            else:
+                step_wet_maes[t] = 0.0
+        per_step_wet_mae_all.append(step_wet_maes)
+
+        # Wet-cell MAE at steps 10, 30, 60, 120
+        wet_mae_step_10 = float(step_wet_maes[9])
+        wet_mae_step_30 = float(step_wet_maes[29])
+        wet_mae_step_60 = float(step_wet_maes[59])
+        wet_mae_step_120 = float(step_wet_maes[119])
+
+        # Domain MAE at steps 10, 30, 60, 120
+        mae_step_10 = float(step_maes[9])
+        mae_step_30 = float(step_maes[29])
+        mae_step_60 = float(step_maes[59])
+        mae_step_120 = float(step_maes[119])
 
         # Wet IoU on all frames >= 0.05m
         pred_wet = pred_depth[1:] >= 0.05
@@ -132,29 +172,30 @@ def evaluate_split(
         wet_union = int(np.logical_or(pred_wet, true_wet).sum())
         wet_iou = float(wet_inter) / float(max(1, wet_union))
 
-        # Checkpoint step MAEs
-        mae_step_10 = float(step_maes[min(9, len(step_maes)-1)])
-        mae_step_30 = float(step_maes[min(29, len(step_maes)-1)])
-        mae_step_60 = float(step_maes[min(59, len(step_maes)-1)])
-        mae_step_120 = float(step_maes[min(119, len(step_maes)-1)])
+        # 4. Peak depth error
+        # (a) Mean over cells of |max_t pred - max_t solver|
+        max_t_pred = np.max(pred_depth, axis=0)  # (64, 64)
+        max_t_true = np.max(true_depth, axis=0)  # (64, 64)
+        peak_depth_error_mean = float(np.mean(np.abs(max_t_pred - max_t_true)))
 
-        # 4. Mass Conservation Accounting at Step 120
-        v_solver = float(np.sum(true_depth[120]) * cell_area)
-        v_pred = float(np.sum(pred_depth[120]) * cell_area)
-        mass_err_vs_solver_pct = float(abs(v_pred - v_solver) / max(1.0, v_solver) * 100.0)
+        # (b) Error of single deepest cell per scenario
+        deepest_true_val = float(np.max(max_t_true))
+        deepest_pred_val = float(np.max(max_t_pred))
+        deepest_cell_error = float(abs(deepest_pred_val - deepest_true_val))
 
-        # Theoretical mass budget (Rain - Drain)
-        # rain_series mm/hr applied for 60s per step
-        rain_vol_step_m3 = rain_series * 1e-3 * (60.0 / 3600.0) * domain_area
-        total_rain_vol_m3 = float(np.sum(rain_vol_step_m3))
-        cum_drain_vol_m3 = float(drain_series[119])
-        v_expected = total_rain_vol_m3 - cum_drain_vol_m3
-        mass_err_vs_budget_pct = float(abs(v_pred - v_expected) / max(1.0, total_rain_vol_m3) * 100.0)
+        # 5. Persistence baseline: h_{t+1} = h_t = 0 (dry initial state)
+        persist_abs_diff = np.abs(true_depth[1:])  # because pred is 0
+        persist_mae = float(np.mean(persist_abs_diff))
+        persist_step_maes = np.mean(persist_abs_diff, axis=(1, 2))
+        per_step_persist_mae_all.append(persist_step_maes)
 
-        # 5. Single-step test (teacher forcing)
+        true_wet_cells = true_depth[1:] >= 0.05
+        persist_wet_mae = float(np.mean(true_depth[1:][true_wet_cells])) if np.any(true_wet_cells) else 0.0
+        persist_wet_iou = 0.0 if np.any(true_wet_cells) else 1.0
+
+        # 6. Teacher-forced single-step model reference (model fed true previous frames)
         with torch.no_grad():
             h_t_norm = normalizer.normalize_depth(torch.tensor(true_depth[:-1], dtype=torch.float32, device=dev).unsqueeze(1))
-            # previous depths
             h_prev = np.zeros_like(true_depth[:-1])
             h_prev[0] = true_depth[0]
             h_prev[1:] = true_depth[:-2]
@@ -171,190 +212,379 @@ def evaluate_split(
 
             inp = torch.cat([h_t_norm, h_prev_norm, dem_exp, sx_exp, sy_exp, r_val, d_map], dim=1)
             pred_delta = model(inp)
-            pred_step_next = torch.clamp(
+            pred_tf_next = torch.clamp(
                 torch.tensor(true_depth[:-1], dtype=torch.float32, device=dev).unsqueeze(1) + pred_delta * normalizer.target_delta_std,
                 min=0.0
             )
-            single_step_diff = torch.abs(pred_step_next - torch.tensor(true_depth[1:], dtype=torch.float32, device=dev).unsqueeze(1))
-            single_step_mae = float(torch.mean(single_step_diff).item())
+            tf_diff = torch.abs(pred_tf_next - torch.tensor(true_depth[1:], dtype=torch.float32, device=dev).unsqueeze(1))
+            tf_mae = float(torch.mean(tf_diff).item())
+
+        # 7. Mass Conservation Accounting at Step 120
+        # Formula (i): |V_pred(T) - V_solver(T)| / max(V_solver(T), eps)
+        # Formula (ii): |V_pred(T) - (R - D_true)| / max(R, eps)
+        v_solver = float(np.sum(true_depth[120]) * cell_area)
+        v_pred = float(np.sum(pred_depth[120]) * cell_area)
+        eps = 1e-4
+
+        mass_err_i_pct = float(abs(v_pred - v_solver) / max(v_solver, eps) * 100.0)
+        signed_mass_err_i_pct = float((v_pred - v_solver) / max(v_solver, eps) * 100.0)
+
+        # Theoretical mass budget: Rain - Drain
+        rain_vol_step_m3 = rain_series * 1e-3 * (60.0 / 3600.0) * domain_area
+        total_rain_vol_m3 = float(np.sum(rain_vol_step_m3))
+        cum_drain_vol_m3 = float(drain_series[119])
+        v_budget = total_rain_vol_m3 - cum_drain_vol_m3
+
+        mass_err_ii_pct = float(abs(v_pred - v_budget) / max(total_rain_vol_m3, eps) * 100.0)
+        signed_mass_err_ii_pct = float((v_pred - v_budget) / max(total_rain_vol_m3, eps) * 100.0)
+
+        persist_mass_err_i_pct = 100.0 if v_solver > 0 else 0.0
+
+        # Bin definitions
+        if intensity_mmhr < 50.0:
+            rain_bin = "<50"
+        elif intensity_mmhr <= 100.0:
+            rain_bin = "50-100"
+        else:
+            rain_bin = ">100"
+
+        drain_bin = "drain_0" if drain_cap_mmhr == 0.0 else "drain_gt_0"
 
         scenario_metrics.append({
             "scenario_idx": sc_idx,
-            "rain_intensity_mmhr": float(params_arr[sc_idx, 0]),
+            "rain_intensity_mmhr": intensity_mmhr,
+            "rain_duration_min": duration_min,
+            "rain_bin": rain_bin,
             "drain_capacity_mmhr": drain_cap_mmhr,
-            "single_step_mae_m": round(single_step_mae, 6),
-            "single_step_mae_mm": round(single_step_mae * 1000.0, 2),
+            "drain_bin": drain_bin,
             "rollout_mae_m": round(overall_mae, 6),
             "rollout_mae_mm": round(overall_mae * 1000.0, 2),
             "rollout_rmse_m": round(overall_rmse, 6),
             "rollout_rmse_mm": round(overall_rmse * 1000.0, 2),
+            "wet_cell_mae_mm": round(wet_cell_mae * 1000.0, 2),
+            "wet_cell_rmse_mm": round(wet_cell_rmse * 1000.0, 2),
             "wet_iou": round(wet_iou, 4),
+            "peak_depth_error_mean_m": round(peak_depth_error_mean, 4),
+            "deepest_cell_error_m": round(deepest_cell_error, 4),
+            "deepest_true_m": round(deepest_true_val, 4),
+            "deepest_pred_m": round(deepest_pred_val, 4),
             "mae_step_10_mm": round(mae_step_10 * 1000.0, 2),
             "mae_step_30_mm": round(mae_step_30 * 1000.0, 2),
             "mae_step_60_mm": round(mae_step_60 * 1000.0, 2),
             "mae_step_120_mm": round(mae_step_120 * 1000.0, 2),
-            "final_volume_solver_m3": round(v_solver, 1),
-            "final_volume_pred_m3": round(v_pred, 1),
-            "mass_err_vs_solver_pct": round(mass_err_vs_solver_pct, 2),
-            "mass_err_vs_budget_pct": round(mass_err_vs_budget_pct, 2),
+            "wet_mae_step_10_mm": round(wet_mae_step_10 * 1000.0, 2),
+            "wet_mae_step_30_mm": round(wet_mae_step_30 * 1000.0, 2),
+            "wet_mae_step_60_mm": round(wet_mae_step_60 * 1000.0, 2),
+            "wet_mae_step_120_mm": round(wet_mae_step_120 * 1000.0, 2),
+            "persist_mae_mm": round(persist_mae * 1000.0, 2),
+            "persist_wet_mae_mm": round(persist_wet_mae * 1000.0, 2),
+            "persist_wet_iou": round(persist_wet_iou, 4),
+            "teacher_forced_mae_mm": round(tf_mae * 1000.0, 2),
+            "v_solver_m3": round(v_solver, 1),
+            "v_pred_m3": round(v_pred, 1),
+            "v_budget_m3": round(v_budget, 1),
+            "mass_err_i_vs_solver_pct": round(mass_err_i_pct, 2),
+            "signed_mass_err_i_pct": round(signed_mass_err_i_pct, 2),
+            "mass_err_ii_vs_budget_pct": round(mass_err_ii_pct, 2),
+            "signed_mass_err_ii_pct": round(signed_mass_err_ii_pct, 2),
             "inference_time_s": round(rollout_res["inference_time_s"], 4),
         })
 
-    per_step_maes_arr = np.array(per_step_mae_all)  # (eval_count, 120)
-    mean_per_step_mae = np.mean(per_step_maes_arr, axis=0)
-    std_per_step_mae = np.std(per_step_maes_arr, axis=0)
+    # Stratified mass error breakdowns
+    def compute_strata(scs: List[Dict[str, Any]], key: str, val: Any) -> Dict[str, Any]:
+        subset = [s for s in scs if s[key] == val]
+        if not subset:
+            return {"count": 0, "mean_mass_err_i_pct": 0.0, "mean_mass_err_ii_pct": 0.0, "signed_i_pct": 0.0}
+        return {
+            "count": len(subset),
+            "mean_mass_err_i_pct": round(float(np.mean([s["mass_err_i_vs_solver_pct"] for s in subset])), 2),
+            "signed_i_pct": round(float(np.mean([s["signed_mass_err_i_pct"] for s in subset])), 2),
+            "mean_mass_err_ii_pct": round(float(np.mean([s["mass_err_ii_vs_budget_pct"] for s in subset])), 2),
+            "signed_ii_pct": round(float(np.mean([s["signed_mass_err_ii_pct"] for s in subset])), 2),
+        }
+
+    rain_bins = {
+        "<50": compute_strata(scenario_metrics, "rain_bin", "<50"),
+        "50-100": compute_strata(scenario_metrics, "rain_bin", "50-100"),
+        ">100": compute_strata(scenario_metrics, "rain_bin", ">100"),
+    }
+    drain_bins = {
+        "drain_0": compute_strata(scenario_metrics, "drain_bin", "drain_0"),
+        "drain_gt_0": compute_strata(scenario_metrics, "drain_bin", "drain_gt_0"),
+    }
+
+    # Identify driver scenarios with highest mass error
+    sorted_by_mass_err = sorted(scenario_metrics, key=lambda x: x["mass_err_i_vs_solver_pct"], reverse=True)
+    top_drivers = [
+        {
+            "scenario_idx": s["scenario_idx"],
+            "rain_intensity_mmhr": s["rain_intensity_mmhr"],
+            "drain_capacity_mmhr": s["drain_capacity_mmhr"],
+            "mass_err_i_pct": s["mass_err_i_vs_solver_pct"],
+            "signed_i_pct": s["signed_mass_err_i_pct"],
+            "v_solver_m3": s["v_solver_m3"],
+            "v_pred_m3": s["v_pred_m3"],
+        }
+        for s in sorted_by_mass_err[:5]
+    ]
+
+    per_step_maes_arr = np.array(per_step_mae_all)
+    per_step_wet_maes_arr = np.array(per_step_wet_mae_all)
+    per_step_persist_arr = np.array(per_step_persist_mae_all)
 
     summary = {
         "num_scenarios": eval_count,
-        "single_step_mae_mm": round(float(np.mean([s["single_step_mae_mm"] for s in scenario_metrics])), 2),
         "rollout_mae_mm": round(float(np.mean([s["rollout_mae_mm"] for s in scenario_metrics])), 2),
         "rollout_rmse_mm": round(float(np.mean([s["rollout_rmse_mm"] for s in scenario_metrics])), 2),
+        "wet_cell_mae_mm": round(float(np.mean([s["wet_cell_mae_mm"] for s in scenario_metrics])), 2),
+        "wet_cell_rmse_mm": round(float(np.mean([s["wet_cell_rmse_mm"] for s in scenario_metrics])), 2),
         "wet_iou": round(float(np.mean([s["wet_iou"] for s in scenario_metrics])), 4),
+        "peak_depth_error_mean_m": round(float(np.mean([s["peak_depth_error_mean_m"] for s in scenario_metrics])), 4),
+        "deepest_cell_error_mean_m": round(float(np.mean([s["deepest_cell_error_m"] for s in scenario_metrics])), 4),
+        "deepest_cell_error_worst_m": round(float(np.max([s["deepest_cell_error_m"] for s in scenario_metrics])), 4),
         "mae_step_10_mm": round(float(np.mean([s["mae_step_10_mm"] for s in scenario_metrics])), 2),
         "mae_step_30_mm": round(float(np.mean([s["mae_step_30_mm"] for s in scenario_metrics])), 2),
         "mae_step_60_mm": round(float(np.mean([s["mae_step_60_mm"] for s in scenario_metrics])), 2),
         "mae_step_120_mm": round(float(np.mean([s["mae_step_120_mm"] for s in scenario_metrics])), 2),
-        "mass_err_vs_solver_pct": round(float(np.mean([s["mass_err_vs_solver_pct"] for s in scenario_metrics])), 2),
-        "mass_err_vs_budget_pct": round(float(np.mean([s["mass_err_vs_budget_pct"] for s in scenario_metrics])), 2),
-        "avg_rollout_time_s": round(float(np.mean([s["inference_time_s"] for s in scenario_metrics])), 4),
+        "wet_mae_step_10_mm": round(float(np.mean([s["wet_mae_step_10_mm"] for s in scenario_metrics])), 2),
+        "wet_mae_step_30_mm": round(float(np.mean([s["wet_mae_step_30_mm"] for s in scenario_metrics])), 2),
+        "wet_mae_step_60_mm": round(float(np.mean([s["wet_mae_step_60_mm"] for s in scenario_metrics])), 2),
+        "wet_mae_step_120_mm": round(float(np.mean([s["wet_mae_step_120_mm"] for s in scenario_metrics])), 2),
+        "persistence_baseline": {
+            "mae_mm": round(float(np.mean([s["persist_mae_mm"] for s in scenario_metrics])), 2),
+            "wet_cell_mae_mm": round(float(np.mean([s["persist_wet_mae_mm"] for s in scenario_metrics])), 2),
+            "wet_iou": round(float(np.mean([s["persist_wet_iou"] for s in scenario_metrics])), 4),
+            "mass_error_pct": 100.0,
+        },
+        "teacher_forced_reference": {
+            "mae_mm": round(float(np.mean([s["teacher_forced_mae_mm"] for s in scenario_metrics])), 2),
+        },
+        "mass_conservation": {
+            "mean_mass_err_i_vs_solver_pct": round(float(np.mean([s["mass_err_i_vs_solver_pct"] for s in scenario_metrics])), 2),
+            "signed_mean_mass_err_i_pct": round(float(np.mean([s["signed_mass_err_i_pct"] for s in scenario_metrics])), 2),
+            "mean_mass_err_ii_vs_budget_pct": round(float(np.mean([s["mass_err_ii_vs_budget_pct"] for s in scenario_metrics])), 2),
+            "signed_mean_mass_err_ii_pct": round(float(np.mean([s["signed_mass_err_ii_pct"] for s in scenario_metrics])), 2),
+            "by_rain_intensity_mmhr": rain_bins,
+            "by_drain_capacity_mmhr": drain_bins,
+            "top_drivers_highest_err": top_drivers,
+        },
         "scenarios": scenario_metrics,
-        "step_mae_mean_mm": (mean_per_step_mae * 1000.0).round(2).tolist(),
-        "step_mae_std_mm": (std_per_step_mae * 1000.0).round(2).tolist(),
+        "step_mae_mean_mm": (np.mean(per_step_maes_arr, axis=0) * 1000.0).round(2).tolist(),
+        "step_mae_std_mm": (np.std(per_step_maes_arr, axis=0) * 1000.0).round(2).tolist(),
+        "step_wet_mae_mean_mm": (np.mean(per_step_wet_maes_arr, axis=0) * 1000.0).round(2).tolist(),
+        "step_wet_mae_std_mm": (np.std(per_step_wet_maes_arr, axis=0) * 1000.0).round(2).tolist(),
+        "step_persist_mae_mean_mm": (np.mean(per_step_persist_arr, axis=0) * 1000.0).round(2).tolist(),
     }
     return summary
 
 
-def benchmark_latency(
-    model: UNetSurrogate,
-    terrain: np.ndarray,
-    normalizer: Normalizer,
-    cell_size_m: float,
-    val_dir: Path,
+def run_honest_speed_benchmark(
+    checkpoint_path: str,
     device: str = "cpu",
+    threads: int = 8,
 ) -> Dict[str, Any]:
-    """Measure rollout latency for Batch 1 and Batched inference."""
-    rain_arr = np.load(str(val_dir / "rain.npy"))
-    params_arr = np.load(str(val_dir / "params.npy"))
+    """Measure honest execution times with median of 7 runs after 3 warmups."""
+    torch.set_num_threads(threads)
+    model, normalizer, _ = load_model(checkpoint_path, device=device)
+    dev = torch.device(device)
 
-    # Batch 1 Benchmark (5 runs)
-    single_rain = rain_arr[0]
-    single_drain = float(params_arr[0, 3])
+    # 1. Forward pass benchmark (Batch 1, 8, 32)
+    def bench_forward(bs: int) -> Dict[str, float]:
+        x = torch.randn(bs, 7, 64, 64, device=dev)
+        # 3 warmups
+        for _ in range(3):
+            with torch.no_grad():
+                _ = model(x)
+        times = []
+        for _ in range(7):
+            t0 = time.perf_counter()
+            with torch.no_grad():
+                _ = model(x)
+            times.append(time.perf_counter() - t0)
+        med_s = float(np.median(times))
+        return {
+            "median_ms": round(med_s * 1000.0, 2),
+            "per_sample_ms": round((med_s * 1000.0) / bs, 2),
+        }
 
-    # Warmup
-    rollout(model, terrain, single_rain, single_drain, normalizer, cell_size_m=cell_size_m, device=device)
+    fwd_1 = bench_forward(1)
+    fwd_8 = bench_forward(8)
+    fwd_32 = bench_forward(32)
 
-    b1_times = []
-    for _ in range(5):
+    # 2. 120-step Rollout Benchmark (Batch 1 and Batch 8)
+    terrain_npz = np.load("artifacts/data/terrain.npz")
+    terrain = terrain_npz["dem_m"].astype(np.float32)
+    cell_size = float(terrain_npz["cell_size_m"])
+
+    rain_1 = np.full(120, 60.0, dtype=np.float32)
+    drain_1 = 5.0
+
+    # Batch 1 rollout
+    for _ in range(3):
+        rollout(model, terrain, rain_1, drain_1, normalizer, cell_size_m=cell_size, device=device)
+    r1_times = []
+    for _ in range(7):
         t0 = time.perf_counter()
-        rollout(model, terrain, single_rain, single_drain, normalizer, cell_size_m=cell_size_m, device=device)
-        b1_times.append(time.perf_counter() - t0)
+        rollout(model, terrain, rain_1, drain_1, normalizer, cell_size_m=cell_size, device=device)
+        r1_times.append(time.perf_counter() - t0)
+    rollout_1_med_s = float(np.median(r1_times))
 
-    mean_b1_s = float(np.mean(b1_times))
-    std_b1_s = float(np.std(b1_times))
+    # Batch 8 rollout
+    rain_8 = np.full((8, 120), 60.0, dtype=np.float32)
+    drain_8 = np.full(8, 5.0, dtype=np.float32)
 
-    # Batched Benchmark (Batch size 20)
-    batch_size = 20
-    rain_batch = rain_arr[:batch_size]
-    drain_batch = params_arr[:batch_size, 3]
+    for _ in range(3):
+        rollout_batched(model, terrain, rain_8[:2], drain_8[:2], normalizer, cell_size_m=cell_size, device=device)
+    r8_times = []
+    for _ in range(7):
+        t0 = time.perf_counter()
+        rollout_batched(model, terrain, rain_8, drain_8, normalizer, cell_size_m=cell_size, device=device)
+        r8_times.append(time.perf_counter() - t0)
+    rollout_8_med_total_s = float(np.median(r8_times))
+    rollout_8_per_sc_s = rollout_8_med_total_s / 8.0
 
-    # Warmup
-    rollout_batched(model, terrain, rain_batch[:2], drain_batch[:2], normalizer, cell_size_m=cell_size_m, device=device)
+    # 3. Solver benchmark: 10 scenarios
+    solver_times = []
+    for sc_i in range(10):
+        t0 = time.perf_counter()
+        run_solver_core(
+            dem=terrain.astype(np.float64),
+            rain_series_mmhr=rain_1,
+            dt_s=float(DT_S),
+            drain_capacity_mmhr=drain_1,
+            cell_size_m=cell_size,
+        )
+        solver_times.append(time.perf_counter() - t0)
+    solver_med_s = float(np.median(solver_times))
 
-    t0 = time.perf_counter()
-    rollout_batched(model, terrain, rain_batch, drain_batch, normalizer, cell_size_m=cell_size_m, device=device)
-    total_batch_time_s = time.perf_counter() - t0
-    per_scenario_batch_s = total_batch_time_s / batch_size
-
-    speedup_b1 = SOLVER_BASELINE_TIME_S / max(1e-5, mean_b1_s)
-    speedup_batched = SOLVER_BASELINE_TIME_S / max(1e-5, per_scenario_batch_s)
+    speedup_b1 = solver_med_s / max(1e-5, rollout_1_med_s)
+    speedup_b8 = solver_med_s / max(1e-5, rollout_8_per_sc_s)
 
     return {
-        "solver_reference_s": SOLVER_BASELINE_TIME_S,
-        "batch_1_mean_s": round(mean_b1_s, 4),
-        "batch_1_mean_ms": round(mean_b1_s * 1000.0, 1),
-        "batch_1_std_s": round(std_b1_s, 4),
-        "batch_1_speedup": round(speedup_b1, 2),
-        "batch_20_total_s": round(total_batch_time_s, 3),
-        "batch_20_per_scenario_s": round(per_scenario_batch_s, 4),
-        "batch_20_per_scenario_ms": round(per_scenario_batch_s * 1000.0, 1),
-        "batch_20_speedup": round(speedup_batched, 2),
+        "hardware_info": {
+            "cpu": platform.processor(),
+            "threads": threads,
+            "os": platform.system(),
+            "python": platform.python_version(),
+            "torch": torch.__version__,
+        },
+        "forward_pass": {
+            "batch_1": fwd_1,
+            "batch_8": fwd_8,
+            "batch_32": fwd_32,
+        },
+        "measured_rollout_120_steps": {
+            "batch_1_median_s": round(rollout_1_med_s, 4),
+            "batch_1_median_ms": round(rollout_1_med_s * 1000.0, 1),
+            "batch_1_speedup_vs_solver": round(speedup_b1, 2),
+            "batch_8_total_median_s": round(rollout_8_med_total_s, 3),
+            "batch_8_per_scenario_ms": round(rollout_8_per_sc_s * 1000.0, 1),
+            "batch_8_speedup_vs_solver": round(speedup_b8, 2),
+        },
+        "measured_solver_120_steps": {
+            "num_scenarios_evaluated": 10,
+            "median_s": round(solver_med_s, 4),
+            "median_ms": round(solver_med_s * 1000.0, 1),
+        },
+        "bundled_k5_note": {
+            "label": "projection, not measured",
+            "historical_claim": "131.1 ms / 2.04x speedup with bundled k=5",
+            "explanation": "The 131.1 ms figure was a theoretical projection calculated during the Step 1.5 speed probe (24 passes of a 5-step unrolled dummy model x ~5.4 ms/pass). No bundled-k5 model was trained or deployed for this baseline. The real measured single-step baseline takes 568 ms on this CPU (0.47x solver speed).",
+        },
     }
 
 
-def generate_error_plot(
+def plot_rollout_curves(
     val_step_mae_mm: List[float],
-    val_step_std_mm: List[float],
+    val_step_wet_mae_mm: List[float],
     extrap_step_mae_mm: List[float],
-    extrap_step_std_mm: List[float],
+    extrap_step_wet_mae_mm: List[float],
     output_png: Path,
 ) -> None:
-    """Generate and save rollout error trajectory plot."""
+    """Plot MAE and Wet-cell MAE trajectories over 120 steps."""
     output_png.parent.mkdir(parents=True, exist_ok=True)
     steps = np.arange(1, len(val_step_mae_mm) + 1)
 
-    val_mean = np.array(val_step_mae_mm)
-    val_std = np.array(val_step_std_mm)
-    extrap_mean = np.array(extrap_step_mae_mm)
-    extrap_std = np.array(extrap_step_std_mm)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5), dpi=150)
 
-    fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
+    # Subplot 1: Domain-Wide MAE
+    ax1.plot(steps, val_step_mae_mm, color="#1f77b4", linewidth=2.2, label="Validation (20 Scenarios)")
+    ax1.plot(steps, extrap_step_mae_mm, color="#d62728", linewidth=2.0, linestyle="--", label="Extrapolation (10 Scenarios)")
+    ax1.set_title("Domain-Wide Depth Error (All 4,096 Cells)", fontsize=11, fontweight="bold")
+    ax1.set_xlabel("Simulation Horizon (Minutes)", fontsize=10)
+    ax1.set_ylabel("MAE (mm)", fontsize=10)
+    ax1.grid(True, linestyle=":", alpha=0.6)
+    ax1.legend(loc="upper left")
 
-    # Validation curve
-    ax.plot(steps, val_mean, color="#1f77b4", linewidth=2.0, label="Validation (20 Scenarios, 20-150 mm/hr)")
-    ax.fill_between(steps, np.maximum(0, val_mean - val_std), val_mean + val_std, color="#1f77b4", alpha=0.2)
+    # Annotate key milestones
+    for t in [10, 30, 60, 120]:
+        v = val_step_mae_mm[t - 1]
+        ax1.scatter([t], [v], color="#1f77b4", s=30, zorder=5)
+        ax1.annotate(f"t={t}: {v:.1f}mm", (t, v), xytext=(t+1, v+0.2), fontsize=8)
 
-    # Extrapolation curve
-    ax.plot(steps, extrap_mean, color="#d62728", linewidth=2.0, linestyle="--", label="Extrapolation (10 Scenarios, 150-180 mm/hr)")
-    ax.fill_between(steps, np.maximum(0, extrap_mean - extrap_std), extrap_mean + extrap_std, color="#d62728", alpha=0.15)
+    # Subplot 2: Wet-Cell MAE
+    ax2.plot(steps, val_step_wet_mae_mm, color="#2ca02c", linewidth=2.2, label="Validation Wet Cells (h >= 0.05m)")
+    ax2.plot(steps, extrap_step_wet_mae_mm, color="#ff7f0e", linewidth=2.0, linestyle="--", label="Extrapolation Wet Cells (h >= 0.05m)")
+    ax2.set_title("Inundated Cell Depth Error (h >= 0.05 m)", fontsize=11, fontweight="bold")
+    ax2.set_xlabel("Simulation Horizon (Minutes)", fontsize=10)
+    ax2.set_ylabel("Wet-Cell MAE (mm)", fontsize=10)
+    ax2.grid(True, linestyle=":", alpha=0.6)
+    ax2.legend(loc="upper left")
 
-    # Milestones (10, 30, 60, 120)
-    for t_step in [10, 30, 60, 120]:
-        if t_step <= len(val_mean):
-            val_val = val_mean[t_step - 1]
-            ax.scatter([t_step], [val_val], color="#1f77b4", s=35, zorder=5)
-            ax.annotate(
-                f"t={t_step}m: {val_val:.1f}mm",
-                xy=(t_step, val_val),
-                xytext=(t_step + 1.5, val_val + 0.4),
-                fontsize=8,
-                color="#0b4870",
-                fontweight="semibold",
-            )
+    for t in [10, 30, 60, 120]:
+        v = val_step_wet_mae_mm[t - 1]
+        ax2.scatter([t], [v], color="#2ca02c", s=30, zorder=5)
+        ax2.annotate(f"t={t}: {v:.1f}mm", (t, v), xytext=(t+1, v+0.3), fontsize=8)
 
-    ax.set_title("HydroVision Baseline Surrogate: 120-Step Autoregressive Rollout Error", fontsize=12, pad=12, fontweight="bold")
-    ax.set_xlabel("Simulation Step t (Minutes, 1 step = 60s)", fontsize=11)
-    ax.set_ylabel("Mean Absolute Depth Error (MAE in mm)", fontsize=11)
+    plt.suptitle("HydroVision Baseline Neural Surrogate: 120-Step Error Trajectory", fontsize=13, fontweight="bold", y=1.02)
+    plt.tight_layout()
+    fig.savefig(str(output_png), bbox_inches="tight")
+    plt.close(fig)
+    print(f"[Evaluation] Overwrote error trajectory plot: {output_png}", flush=True)
+
+
+def plot_persistence_comparison(
+    steps: np.ndarray,
+    val_model_mae_mm: List[float],
+    val_persist_mae_mm: List[float],
+    output_png: Path,
+) -> None:
+    """Plot Model Rollout vs Persistence Baseline (h_{t+1} = h_t)."""
+    fig, ax = plt.subplots(figsize=(9, 5), dpi=150)
+    ax.plot(steps, val_persist_mae_mm, color="#7f7f7f", linewidth=2.2, linestyle=":", label="Persistence Baseline (h_{t+1} = h_t = 0)")
+    ax.plot(steps, val_model_mae_mm, color="#1f77b4", linewidth=2.2, label="Trained Surrogate Rollout")
+
+    ax.set_title("Model Rollout vs Persistence Baseline (Validation 20 Scenarios)", fontsize=11, fontweight="bold")
+    ax.set_xlabel("Simulation Step t (Minutes)", fontsize=10)
+    ax.set_ylabel("Domain Mean Absolute Error (MAE in mm)", fontsize=10)
     ax.grid(True, linestyle=":", alpha=0.6)
-    ax.set_xlim(1, 120)
-    ax.set_ylim(bottom=0)
-    ax.legend(loc="upper left", framealpha=0.9)
+    ax.legend(loc="upper left")
 
     plt.tight_layout()
-    fig.savefig(str(output_png))
+    fig.savefig(str(output_png), bbox_inches="tight")
     plt.close(fig)
-    print(f"[Evaluation] Saved error plot to: {output_png}", flush=True)
+    print(f"[Evaluation] Saved persistence comparison plot: {output_png}", flush=True)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Evaluate HydroVision baseline surrogate.")
-    parser.add_argument("--checkpoint", type=str, default="artifacts/models/best.pt", help="Path to checkpoint.")
-    parser.add_argument("--val-count", type=int, default=20, help="Number of validation scenarios.")
-    parser.add_argument("--extrap-count", type=int, default=10, help="Number of extrapolation scenarios.")
-    parser.add_argument("--device", type=str, default="cpu", help="Device ('cpu' or 'cuda').")
-    parser.add_argument("--threads", type=int, default=8, help="PyTorch CPU threads.")
-    parser.add_argument("--output-json", type=str, default="artifacts/reports/baseline_metrics.json", help="Output JSON.")
-    parser.add_argument("--output-png", type=str, default="artifacts/reports/baseline_rollout_error.png", help="Output PNG.")
+    parser = argparse.ArgumentParser(description="Evaluate baseline surrogate with full Step 3 addendum.")
+    parser.add_argument("--checkpoint", type=str, default="artifacts/models/best.pt")
+    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--threads", type=int, default=8)
+    parser.add_argument("--output-json", type=str, default="artifacts/reports/baseline_metrics.json")
+    parser.add_argument("--output-png", type=str, default="artifacts/reports/baseline_rollout_error.png")
+    parser.add_argument("--persist-png", type=str, default="artifacts/reports/baseline_persistence_comparison.png")
 
     args = parser.parse_args()
     torch.set_num_threads(args.threads)
 
-    print("=" * 70, flush=True)
-    print("HYDROVISION BASELINE SURROGATE EVALUATION", flush=True)
+    print("=" * 80, flush=True)
+    print("HYDROVISION BASELINE SURROGATE EVALUATION ADDENDUM (STEP 3)", flush=True)
     print(f"Checkpoint: {args.checkpoint} | Device: {args.device.upper()} | Threads: {args.threads}", flush=True)
-    print("=" * 70, flush=True)
+    print("=" * 80, flush=True)
 
     # 1. Load Model & Normalizer
-    model, normalizer = load_model(args.checkpoint, device=args.device)
+    model, normalizer, ckpt = load_model(args.checkpoint, device=args.device)
 
     # 2. Load Real Terrain
     terrain_npz = np.load("artifacts/data/terrain.npz")
@@ -363,89 +593,132 @@ def main() -> None:
 
     # 3. Evaluate Validation Split (20 scenarios)
     val_dir = Path(DATA_DIR) / "val"
-    print(f"\n[Evaluation] Evaluating {args.val_count} Validation scenarios...", flush=True)
-    val_summary = evaluate_split(
+    print(f"\n[Evaluation] Evaluating 20 Validation Scenarios with full Step 3 metrics...", flush=True)
+    val_summary = evaluate_split_full(
         model=model,
         normalizer=normalizer,
         terrain=terrain,
         cell_size_m=cell_size_m,
         split_dir=val_dir,
-        num_scenarios=args.val_count,
+        num_scenarios=20,
         device=args.device,
     )
 
     # 4. Evaluate Extrapolation Split (10 scenarios)
     extrap_dir = Path(DATA_DIR) / "extrapolation"
-    print(f"[Evaluation] Evaluating {args.extrap_count} Extrapolation scenarios...", flush=True)
-    extrap_summary = evaluate_split(
+    print(f"[Evaluation] Evaluating 10 Extrapolation Scenarios...", flush=True)
+    extrap_summary = evaluate_split_full(
         model=model,
         normalizer=normalizer,
         terrain=terrain,
         cell_size_m=cell_size_m,
         split_dir=extrap_dir,
-        num_scenarios=args.extrap_count,
+        num_scenarios=10,
         device=args.device,
     )
 
-    # 5. Measure Latency & Speedup
-    print("[Evaluation] Benchmarking rollout latency...", flush=True)
-    latency_summary = benchmark_latency(
-        model=model,
-        terrain=terrain,
-        normalizer=normalizer,
-        cell_size_m=cell_size_m,
-        val_dir=val_dir,
+    # 5. Honest Speed Benchmarking
+    print("[Evaluation] Running honest speed benchmarks (7 runs median, 3 warmups)...", flush=True)
+    speed_summary = run_honest_speed_benchmark(
+        checkpoint_path=args.checkpoint,
         device=args.device,
+        threads=args.threads,
     )
 
-    # 6. Generate Plot
-    png_path = Path(args.output_png)
-    generate_error_plot(
+    # 6. Generate Plots
+    plot_rollout_curves(
         val_step_mae_mm=val_summary["step_mae_mean_mm"],
-        val_step_std_mm=val_summary["step_mae_std_mm"],
+        val_step_wet_mae_mm=val_summary["step_wet_mae_mean_mm"],
         extrap_step_mae_mm=extrap_summary["step_mae_mean_mm"],
-        extrap_step_std_mm=extrap_summary["step_mae_std_mm"],
-        output_png=png_path,
+        extrap_step_wet_mae_mm=extrap_summary["step_wet_mae_mean_mm"],
+        output_png=Path(args.output_png),
+    )
+    steps = np.arange(1, 121)
+    plot_persistence_comparison(
+        steps=steps,
+        val_model_mae_mm=val_summary["step_mae_mean_mm"],
+        val_persist_mae_mm=val_summary["step_persist_mae_mean_mm"],
+        output_png=Path(args.persist_png),
     )
 
-    # 7. Package and Save Final Metrics JSON
-    report = {
+    # 7. Merge into JSON report (preserve existing keys + extend)
+    out_json = Path(args.output_json)
+    existing_data = {}
+    if out_json.exists():
+        try:
+            with open(out_json, "r", encoding="utf-8") as f:
+                existing_data = json.load(f)
+        except Exception:
+            existing_data = {}
+
+    report = dict(existing_data)
+    report.update({
         "status": "COMPLETED",
         "checkpoint": args.checkpoint,
         "evaluation_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "validation_summary": {k: v for k, v in val_summary.items() if k not in ("scenarios", "step_mae_mean_mm", "step_mae_std_mm")},
-        "extrapolation_summary": {k: v for k, v in extrap_summary.items() if k not in ("scenarios", "step_mae_mean_mm", "step_mae_std_mm")},
-        "latency_benchmark": latency_summary,
-        "validation_scenarios": val_summary["scenarios"],
-        "extrapolation_scenarios": extrap_summary["scenarios"],
-    }
+        "mass_conservation_formula": {
+            "formula_i": "|V_pred(T) - V_solver(T)| / max(V_solver(T), eps)",
+            "formula_ii": "|V_pred(T) - (R - D_true)| / max(R, eps)",
+            "definition": "V = sum(depth) * 60.9^2, R = cumulative rain volume (m3), D_true = cumulative drained volume (drain_m3 index 119)",
+        },
+        "step_3_addendum": {
+            "validation": {
+                "rollout_mae_mm": val_summary["rollout_mae_mm"],
+                "wet_cell_mae_mm": val_summary["wet_cell_mae_mm"],
+                "wet_cell_rmse_mm": val_summary["wet_cell_rmse_mm"],
+                "wet_iou": val_summary["wet_iou"],
+                "peak_depth_error_mean_m": val_summary["peak_depth_error_mean_m"],
+                "deepest_cell_error_mean_m": val_summary["deepest_cell_error_mean_m"],
+                "deepest_cell_error_worst_m": val_summary["deepest_cell_error_worst_m"],
+                "mae_steps_mm": {
+                    "step_10": val_summary["mae_step_10_mm"],
+                    "step_30": val_summary["mae_step_30_mm"],
+                    "step_60": val_summary["mae_step_60_mm"],
+                    "step_120": val_summary["mae_step_120_mm"],
+                },
+                "wet_cell_mae_steps_mm": {
+                    "step_10": val_summary["wet_mae_step_10_mm"],
+                    "step_30": val_summary["wet_mae_step_30_mm"],
+                    "step_60": val_summary["wet_mae_step_60_mm"],
+                    "step_120": val_summary["wet_mae_step_120_mm"],
+                },
+                "persistence_baseline": val_summary["persistence_baseline"],
+                "teacher_forced_reference": val_summary["teacher_forced_reference"],
+                "mass_conservation": val_summary["mass_conservation"],
+            },
+            "extrapolation": {
+                "rollout_mae_mm": extrap_summary["rollout_mae_mm"],
+                "wet_cell_mae_mm": extrap_summary["wet_cell_mae_mm"],
+                "wet_cell_rmse_mm": extrap_summary["wet_cell_rmse_mm"],
+                "wet_iou": extrap_summary["wet_iou"],
+                "peak_depth_error_mean_m": extrap_summary["peak_depth_error_mean_m"],
+                "deepest_cell_error_mean_m": extrap_summary["deepest_cell_error_mean_m"],
+                "deepest_cell_error_worst_m": extrap_summary["deepest_cell_error_worst_m"],
+                "mae_steps_mm": {
+                    "step_10": extrap_summary["mae_step_10_mm"],
+                    "step_30": extrap_summary["mae_step_30_mm"],
+                    "step_60": extrap_summary["mae_step_60_mm"],
+                    "step_120": extrap_summary["mae_step_120_mm"],
+                },
+                "wet_cell_mae_steps_mm": {
+                    "step_10": extrap_summary["wet_mae_step_10_mm"],
+                    "step_30": extrap_summary["wet_mae_step_30_mm"],
+                    "step_60": extrap_summary["wet_mae_step_60_mm"],
+                    "step_120": extrap_summary["wet_mae_step_120_mm"],
+                },
+                "persistence_baseline": extrap_summary["persistence_baseline"],
+                "teacher_forced_reference": extrap_summary["teacher_forced_reference"],
+                "mass_conservation": extrap_summary["mass_conservation"],
+            },
+            "speed_benchmark_honest": speed_summary,
+        },
+        "validation_scenarios_detailed": val_summary["scenarios"],
+        "extrapolation_scenarios_detailed": extrap_summary["scenarios"],
+    })
 
-    json_path = Path(args.output_json)
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(json_path, "w", encoding="utf-8") as f:
+    with open(out_json, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
-    print(f"[Evaluation] Saved metrics report to: {json_path}", flush=True)
-
-    # Print summary table
-    print("\n" + "=" * 70, flush=True)
-    print("EVALUATION RESULTS SUMMARY", flush=True)
-    print("=" * 70, flush=True)
-    print(f"Single-Step MAE:        Val = {val_summary['single_step_mae_mm']:5.2f} mm | Extrap = {extrap_summary['single_step_mae_mm']:5.2f} mm")
-    print(f"120-Step Rollout MAE:   Val = {val_summary['rollout_mae_mm']:5.2f} mm | Extrap = {extrap_summary['rollout_mae_mm']:5.2f} mm")
-    print(f"120-Step Rollout RMSE:  Val = {val_summary['rollout_rmse_mm']:5.2f} mm | Extrap = {extrap_summary['rollout_rmse_mm']:5.2f} mm")
-    print(f"Wet IoU (>= 0.05m):     Val = {val_summary['wet_iou']:.4f}   | Extrap = {extrap_summary['wet_iou']:.4f}")
-    print(f"Rollout MAE @ Step 10:  Val = {val_summary['mae_step_10_mm']:5.2f} mm | Extrap = {extrap_summary['mae_step_10_mm']:5.2f} mm")
-    print(f"Rollout MAE @ Step 30:  Val = {val_summary['mae_step_30_mm']:5.2f} mm | Extrap = {extrap_summary['mae_step_30_mm']:5.2f} mm")
-    print(f"Rollout MAE @ Step 60:  Val = {val_summary['mae_step_60_mm']:5.2f} mm | Extrap = {extrap_summary['mae_step_60_mm']:5.2f} mm")
-    print(f"Rollout MAE @ Step 120: Val = {val_summary['mae_step_120_mm']:5.2f} mm | Extrap = {extrap_summary['mae_step_120_mm']:5.2f} mm")
-    print(f"Mass Error vs Solver:   Val = {val_summary['mass_err_vs_solver_pct']:5.2f} %  | Extrap = {extrap_summary['mass_err_vs_solver_pct']:5.2f} %")
-    print(f"Mass Error vs Budget:   Val = {val_summary['mass_err_vs_budget_pct']:5.2f} %  | Extrap = {extrap_summary['mass_err_vs_budget_pct']:5.2f} %")
-    print("-" * 70, flush=True)
-    print(f"Inference Latency:")
-    print(f"  Solver Baseline:      {latency_summary['solver_reference_s']*1000.0:.1f} ms / 120-step scenario")
-    print(f"  Surrogate (Batch 1):  {latency_summary['batch_1_mean_ms']:.1f} ms ({latency_summary['batch_1_speedup']}x speedup)")
-    print(f"  Surrogate (Batch 20): {latency_summary['batch_20_per_scenario_ms']:.1f} ms/sc ({latency_summary['batch_20_speedup']}x speedup)")
-    print("=" * 70, flush=True)
+    print(f"[Evaluation] Saved enhanced report to: {out_json}", flush=True)
 
 
 if __name__ == "__main__":

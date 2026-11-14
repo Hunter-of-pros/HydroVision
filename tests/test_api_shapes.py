@@ -16,7 +16,6 @@ from hydrovision_ml import api
 from scripts.validate_model import check_forecast_response
 
 
-@pytest.mark.xfail(reason="Real terrain ingestion scheduled for ML Phase 1", raises=NotImplementedError)
 def test_real_api_get_terrain():
     """Verify terrain elevation grid and spatial metadata."""
     terrain = api.get_terrain()
@@ -34,7 +33,6 @@ def test_real_api_get_terrain():
     assert np.all(np.isfinite(elev)), "Terrain elevation must be finite"
 
 
-@pytest.mark.xfail(reason="Real surrogate model rollout scheduled for ML Phase 4", raises=NotImplementedError)
 def test_real_api_forecast():
     """Verify fast neural surrogate rollout against acceptance contract."""
     params = {
@@ -54,7 +52,6 @@ def test_real_api_forecast():
     assert passed, f"Surrogate acceptance checks failed: {errors}"
 
 
-@pytest.mark.xfail(reason="Real hydrodynamic solver scheduled for ML Phase 2", raises=NotImplementedError)
 def test_real_api_run_solver():
     """Verify 2D SWE numerical solver against acceptance contract."""
     params = {
@@ -82,7 +79,6 @@ def test_real_api_run_solver():
         assert max(residuals) <= 0.01, f"Solver mass residual exceeds 0.01: max={max(residuals)}"
 
 
-@pytest.mark.xfail(reason="Real evaluation suite scheduled for ML Phase 6", raises=NotImplementedError)
 def test_real_api_compute_metrics():
     """Verify formal evaluation metric computation against contract."""
     pred = np.zeros((121, 64, 64), dtype=np.float64)
@@ -115,7 +111,6 @@ def test_real_api_compute_metrics():
     assert 0.0 <= metrics["wet_iou"] <= 1.0
 
 
-@pytest.mark.xfail(reason="Real model metadata scheduled for ML Phase 4", raises=NotImplementedError)
 def test_real_api_get_model_info():
     """Verify model runtime metadata reporting."""
     info = api.get_model_info()

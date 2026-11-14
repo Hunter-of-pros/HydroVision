@@ -55,4 +55,5 @@ artifacts/reports/*.pdf
 !artifacts/reports/dem_candidates.png
 !artifacts/reports/solver_real_terrain.png
 !artifacts/reports/baseline_rollout_error.png
+!artifacts/reports/baseline_persistence_comparison.png
 
