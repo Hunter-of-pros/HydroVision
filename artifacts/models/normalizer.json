@@ -1,0 +1,12 @@
+{
+  "depth_scale_m": 1.5,
+  "rain_scale_mmhr": 150.0,
+  "drain_scale_mmhr": 30.0,
+  "dem_mean": 878.3956909179688,
+  "dem_std": 7.55381441116333,
+  "slope_x_mean": -0.001333615742623806,
+  "slope_x_std": 0.017499960958957672,
+  "slope_y_mean": -0.0005719289183616638,
+  "slope_y_std": 0.01828622817993164,
+  "target_delta_std": 0.003720470005646348
+}
