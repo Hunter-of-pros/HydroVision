@@ -6,6 +6,7 @@ Contract: docs/CONTRACT.md v1.0
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -190,6 +191,14 @@ def get_results() -> Dict[str, Any]:
 def get_live_weather() -> Dict[str, Any]:
     """Return real-time weather observations (temperature, precipitation, mm/hr rainfall) for Bellandur catchment."""
     return services.get_live_weather()
+
+
+# Serve compiled Vite React frontend when built
+_frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _frontend_dist.is_dir():
+    from fastapi.staticfiles import StaticFiles
+    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")
+
 
 
 

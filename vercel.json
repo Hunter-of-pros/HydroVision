@@ -16,7 +16,7 @@
     },
     {
       "source": "/((?!assets/|basemap_|.*\\..*).*)",
-      "destination": "/index.html"
+      "destination": "/api/index.py?__path=/"
     }
   ]
 }
