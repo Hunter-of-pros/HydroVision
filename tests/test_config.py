@@ -57,3 +57,15 @@ def test_config_params_ranges():
     assert "constant" in params["rain_shape"]["allowed"]
     assert params["drain_capacity_mmhr"]["default"] == 0
 
+
+def test_config_hazard_thresholds():
+    """Verify hazard_thresholds is in config.json with illustrative disclaimer."""
+    from hydrovision_ml.config import CONFIG
+
+    assert "hazard_thresholds" in CONFIG
+    haz = CONFIG["hazard_thresholds"]
+    assert haz["source"] == "ILLUSTRATIVE, not an official standard"
+    assert haz["wet_m"] == 0.05
+    assert haz["impassable_m"] == 0.15
+    assert haz["critical_m"] == 0.30
+

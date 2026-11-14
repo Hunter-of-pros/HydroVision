@@ -30,6 +30,16 @@ class TimeConfig(BaseModel):
     horizon_steps: int = Field(120, description="Total number of prediction intervals.")
 
 
+class HazardThresholdsConfig(BaseModel):
+    source: str = Field(
+        "ILLUSTRATIVE, not an official standard",
+        description="Source disclaimer regarding classification authority.",
+    )
+    wet_m: float = Field(0.05, description="Surface runoff wet cell threshold in meters.")
+    impassable_m: float = Field(0.15, description="Illustrative vehicle/pedestrian threshold (15 cm).")
+    critical_m: float = Field(0.30, description="Illustrative deep inundation threshold (30 cm).")
+
+
 class ConfigResponse(BaseModel):
     """Simulation parameters and configuration contract."""
 
@@ -37,6 +47,7 @@ class ConfigResponse(BaseModel):
     grid: GridConfig
     time: TimeConfig
     wet_threshold_m: float = 0.05
+    hazard_thresholds: Optional[HazardThresholdsConfig] = None
     params: Dict[str, Any]
 
 
@@ -55,6 +66,10 @@ class TerrainResponse(BaseModel):
     shape: List[int] = Field([64, 64], description="Grid dimensions [rows, cols].")
     min_elevation: float = Field(..., description="Minimum elevation in meters.")
     max_elevation: float = Field(..., description="Maximum elevation in meters.")
+    is_synthetic: Optional[bool] = Field(
+        True,
+        description="True if digital elevation model is synthetic/illustrative.",
+    )
 
 
 class ForecastRequest(BaseModel):
@@ -119,6 +134,21 @@ class ForecastResponse(BaseModel):
     inference_time_ms: float = Field(..., description="Surrogate inference latency in milliseconds.")
     model_name: str = Field(..., description="Model identifier used to produce forecast.")
     frame_stride: int = Field(1, description="Stride applied to returned frames.")
+    volume_m3_series: Optional[List[float]] = Field(
+        None, description="Domain total water volume in m3 per frame (sum(h) * dx * dy)."
+    )
+    cum_rain_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative precipitation volume in m3."
+    )
+    cum_drain_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative drainage volume in m3."
+    )
+    cum_outflow_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative boundary outflow volume in m3."
+    )
+    mass_residual_series: Optional[List[float]] = Field(
+        None, description="Normalized mass conservation residual series over time."
+    )
 
 
 class SolverResponse(BaseModel):
@@ -131,6 +161,21 @@ class SolverResponse(BaseModel):
     solve_time_s: float
     solver_name: str
     frame_stride: int = 1
+    volume_m3_series: Optional[List[float]] = Field(
+        None, description="Domain total water volume in m3 per frame."
+    )
+    cum_rain_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative precipitation volume in m3."
+    )
+    cum_drain_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative drainage volume in m3."
+    )
+    cum_outflow_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative boundary outflow volume in m3."
+    )
+    mass_residual_series: Optional[List[float]] = Field(
+        None, description="Normalized mass conservation residual series over time."
+    )
 
 
 class MetricsResponse(BaseModel):
@@ -146,6 +191,19 @@ class MetricsResponse(BaseModel):
         description="Discrepancy in wetting front arrival time in seconds.",
     )
     speedup: float = Field(..., description="Speedup factor (solver_time / surrogate_time).")
+    mae_series: Optional[List[float]] = Field(
+        None, description="Per-frame Mean Absolute Error in meters."
+    )
+    mass_residual_series: Optional[List[float]] = Field(
+        None, description="Mass balance residual series for surrogate."
+    )
+    solver_mass_residual_series: Optional[List[float]] = Field(
+        None, description="Mass balance residual series for solver."
+    )
+    peak_extent_iou: Optional[float] = Field(
+        None, description="Inundation IoU across all cells ever wet during rollout (h >= 0.05m)."
+    )
+
 
 
 class CompareRequest(ForecastRequest):
@@ -160,6 +218,7 @@ class CompareResponse(BaseModel):
     surrogate: ForecastResponse
     solver: SolverResponse
     metrics: MetricsResponse
+    model_name: Optional[str] = Field("mock-v0", description="Surrogate model identifier.")
 
 
 class PresetItem(BaseModel):
@@ -173,4 +232,41 @@ class PresetItem(BaseModel):
 
 class PresetsResponse(BaseModel):
     presets: List[PresetItem]
+
+
+class TestSetConfig(BaseModel):
+    n_runs: int = Field(50, description="Number of randomized evaluation runs.")
+    rain_range_mmhr: List[float] = Field([20.0, 150.0], description="Precipitation range [min, max] in mm/hr.")
+
+
+class AblationItem(BaseModel):
+    name: str = Field(..., description="Ablation configuration name.")
+    mae_m: float = Field(..., description="Mean absolute depth error across test set in meters.")
+    rmse_m: float = Field(..., description="Root mean squared error in meters.")
+    wet_iou: float = Field(..., description="Inundation extent Intersection-over-Union.")
+    mass_residual_max: float = Field(..., description="Maximum mass conservation residual.")
+
+
+class ErrorVsHorizon(BaseModel):
+    steps: List[int] = Field(..., description="Time step indices along horizon.")
+    mae_m: List[float] = Field(..., description="Per-step MAE across test set in meters.")
+
+
+class SpeedupScalingItem(BaseModel):
+    grid: str = Field(..., description="Grid dimension resolution.")
+    solver_s: float = Field(..., description="SWE solver execution time in seconds.")
+    surrogate_ms: float = Field(..., description="Surrogate inference latency in milliseconds.")
+
+
+class EvalSummaryResponse(BaseModel):
+    """Empirical evaluation and ablation benchmark summary conforming to docs/eval_summary.schema.json."""
+
+    generated_at: str = Field(..., description="ISO 8601 timestamp of benchmark run.")
+    hardware: str = Field(..., description="Compute environment specification.")
+    is_mock: bool = Field(..., description="True if results are mock / simulated.")
+    test_set: TestSetConfig
+    ablation: List[AblationItem]
+    error_vs_horizon: ErrorVsHorizon
+    speedup_scaling: List[SpeedupScalingItem]
+
 

@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HydroVisionEvaluationSummary",
+  "description": "Formal schema for results/eval_summary.json storing benchmark evaluation and ablation results.",
+  "type": "object",
+  "required": [
+    "generated_at",
+    "hardware",
+    "is_mock",
+    "test_set",
+    "ablation",
+    "error_vs_horizon",
+    "speedup_scaling"
+  ],
+  "properties": {
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of benchmark execution."
+    },
+    "hardware": {
+      "type": "string",
+      "description": "Specification of test bench hardware (e.g. CPU, GPU, memory)."
+    },
+    "is_mock": {
+      "type": "boolean",
+      "description": "True if metrics are mock / synthetic; False if evaluated from real neural surrogate and SWE solver."
+    },
+    "test_set": {
+      "type": "object",
+      "required": ["n_runs", "rain_range_mmhr"],
+      "properties": {
+        "n_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of randomized test storms evaluated."
+        },
+        "rain_range_mmhr": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "[min, max] precipitation rate range in mm/hr."
+        }
+      }
+    },
+    "ablation": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["name", "mae_m", "rmse_m", "wet_iou", "mass_residual_max"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "A plain",
+              "B mass loss",
+              "C mass loss + rollout training"
+            ],
+            "description": "Surrogate model training configuration."
+          },
+          "mae_m": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Mean Absolute Depth Error across test suite in meters."
+          },
+          "rmse_m": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Root Mean Squared Depth Error in meters."
+          },
+          "wet_iou": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Intersection-over-Union of inundated area (>0.05m)."
+          },
+          "mass_residual_max": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Maximum relative mass balance residual across rollouts."
+          }
+        }
+      }
+    },
+    "error_vs_horizon": {
+      "type": "object",
+      "required": ["steps", "mae_m"],
+      "properties": {
+        "steps": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0 },
+          "description": "Prediction time step indices along the 120-step horizon."
+        },
+        "mae_m": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0.0 },
+          "description": "Mean Absolute Error in meters at each corresponding step."
+        }
+      }
+    },
+    "speedup_scaling": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["grid", "solver_s", "surrogate_ms"],
+        "properties": {
+          "grid": {
+            "type": "string",
+            "description": "Grid resolution dimension, e.g. '32x32', '64x64', '128x128'."
+          },
+          "solver_s": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "High-fidelity numerical solver runtime in wall-clock seconds."
+          },
+          "surrogate_ms": {
+            "type": "number",
+            "minimum": 0.0,
+            "description": "Fast neural surrogate rollout latency in milliseconds."
+          }
+        }
+      }
+    }
+  }
+}
+
