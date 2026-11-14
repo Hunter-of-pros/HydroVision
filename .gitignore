@@ -1,0 +1,42 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments & Virtual Envs
+.venv/
+venv/
+ENV/
+env/
+.env
+.env.local
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / Frontend
+node_modules/
+dist/
+.DS_Store
+
+# Artifacts & Heavy Data (Keep .gitkeep)
+artifacts/models/*.pt
+artifacts/models/*.pth
+artifacts/models/*.onnx
+artifacts/data/*.npz
+artifacts/data/*.tif
+artifacts/data/*.tiff
+artifacts/reports/*.png
+artifacts/reports/*.pdf
+!artifacts/models/.gitkeep
+!artifacts/data/.gitkeep
+!artifacts/reports/.gitkeep
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+

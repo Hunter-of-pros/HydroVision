@@ -1,0 +1,44 @@
+{
+  "contract_version": "1.0",
+  "grid": {
+    "rows": 64,
+    "cols": 64,
+    "cell_size_m": 40
+  },
+  "time": {
+    "dt_s": 60,
+    "horizon_steps": 120
+  },
+  "wet_threshold_m": 0.05,
+  "params": {
+    "rain_intensity_mmhr": {
+      "min": 20,
+      "max": 150,
+      "default": 80
+    },
+    "rain_duration_min": {
+      "min": 15,
+      "max": 90,
+      "default": 45
+    },
+    "rain_shape": {
+      "allowed": [
+        "constant",
+        "triangular",
+        "double_peak"
+      ],
+      "default": "constant"
+    },
+    "drain_capacity_mmhr": {
+      "min": 0,
+      "max": 30,
+      "default": 0
+    },
+    "horizon_steps": {
+      "min": 10,
+      "max": 120,
+      "default": 120
+    }
+  }
+}
+
