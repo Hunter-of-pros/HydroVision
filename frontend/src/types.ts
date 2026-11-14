@@ -106,3 +106,4 @@ export interface CompareResult {
   solver: SolverResult;
   metrics: ComparisonMetrics;
 }
+

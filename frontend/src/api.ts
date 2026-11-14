@@ -60,3 +60,4 @@ export async function runCompare(params: ForecastParams): Promise<CompareResult>
     body: JSON.stringify(params),
   });
 }
+
