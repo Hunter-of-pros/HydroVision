@@ -224,9 +224,11 @@ def get_model_info() -> Dict[str, Any]:
     dict
         Model metadata dictionary.
     """
+    global _MODEL_LOADED
     return {
         "model_name": "hydrovision-swe-v1",
         "is_mock": False,
+        "model_loaded": bool(_MODEL_LOADED),
         "device": "cpu",
         "checkpoint_path": "artifacts/models/best.pt",
         "contract_version": str(CONTRACT_VERSION),
