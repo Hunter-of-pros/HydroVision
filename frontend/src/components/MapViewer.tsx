@@ -90,7 +90,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     };
   }, [terrain]);
 
-  // Compute terrain hillshade once when terrain loads for crisp relief under water
+  // Compute terrain hillshade once when terrain loads for crisp 3D relief under water
   useEffect(() => {
     if (!terrain) return;
     const tRows = terrain.shape[0];
@@ -107,28 +107,26 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     // NW illumination (315 deg azimuth, 45 deg altitude)
     const sunAz = (315 * Math.PI) / 180;
     const sunAlt = (45 * Math.PI) / 180;
+    const sinAlt = Math.sin(sunAlt);
+    const cosAlt = Math.cos(sunAlt);
 
     for (let r = 0; r < tRows; r++) {
       for (let c = 0; c < tCols; c++) {
-        const cLeft = Math.max(0, c - 1);
-        const cRight = Math.min(tCols - 1, c + 1);
-        const rUp = Math.max(0, r - 1);
-        const rDown = Math.min(tRows - 1, r + 1);
+        const rPrev = Math.max(0, r - 1);
+        const rNext = Math.min(tRows - 1, r + 1);
+        const cPrev = Math.max(0, c - 1);
+        const cNext = Math.min(tCols - 1, c + 1);
 
-        const dzdx = (elev[r][cRight] - elev[r][cLeft]) / ((cRight - cLeft) * dx);
-        const dzdy = (elev[rDown][c] - elev[rUp][c]) / ((rDown - rUp) * dx);
+        const dzdx = ((elev[r]?.[cNext] ?? 0) - (elev[r]?.[cPrev] ?? 0)) / (2 * dx);
+        const dzdy = ((elev[rNext]?.[c] ?? 0) - (elev[rPrev]?.[c] ?? 0)) / (2 * dx);
 
         const slope = Math.atan(Math.sqrt(dzdx * dzdx + dzdy * dzdy));
-        let aspect = Math.atan2(dzdy, -dzdx);
-        if (aspect < 0) aspect += 2 * Math.PI;
+        const aspect = Math.atan2(dzdy, -dzdx);
 
-        const hillshade = Math.max(
-          0,
-          Math.sin(sunAlt) * Math.cos(slope) +
-            Math.cos(sunAlt) * Math.sin(slope) * Math.cos(sunAz - aspect)
-        );
+        let shade = sinAlt * Math.cos(slope) + cosAlt * Math.sin(slope) * Math.cos(sunAz - aspect);
+        shade = Math.max(0, Math.min(1, shade));
+        const val = Math.round(shade * 255);
 
-        const val = Math.floor(hillshade * 255);
         const idx = (r * tCols + c) * 4;
         imgData.data[idx] = val;
         imgData.data[idx + 1] = val;
@@ -136,27 +134,26 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         imgData.data[idx + 3] = 255;
       }
     }
-
     hsCtx.putImageData(imgData, 0, 0);
     cachedHillshadeRef.current = hsCanvas;
   }, [terrain]);
 
-  // Subtle continuous water flow ripple animation
+  // Subtle continuous animation loop for indicative flow vectors
   useEffect(() => {
-    let animId: number;
-    const loop = () => {
-      setAnimTick((t) => (t + 1) % 360);
-      animId = requestAnimationFrame(loop);
-    };
-    animId = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animId);
-  }, []);
+    if (!showFlowVectors) return;
+    const timer = setInterval(() => {
+      setAnimTick((prev) => (prev + 1) % 100);
+    }, 60);
+    return () => clearInterval(timer);
+  }, [showFlowVectors]);
 
-  // Frame Interpolation for sub-second smooth fluid rendering
-  const activeDepth = useMemo(() => {
+  // Interpolated depth frame supporting continuous 60fps temporal blending
+  const effectiveDepthFrame = useMemo(() => {
     if (!depthFrame) return null;
-    if (!nextDepthFrame || frameProgress <= 0.01) return depthFrame;
-    const p = Math.max(0, Math.min(1, frameProgress));
+    if (!nextDepthFrame || frameProgress <= 0 || frameProgress >= 1) {
+      return depthFrame;
+    }
+    const p = Math.min(1.0, Math.max(0.0, frameProgress));
     const blended: number[][] = [];
     for (let r = 0; r < rows; r++) {
       const row: number[] = [];
@@ -209,149 +206,213 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       }
     }
 
+    // Grid Mesh (always visible or toggled)
+    ctx.strokeStyle = showGrid ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.28)';
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i <= 8; i++) {
+      const pos = (i / 8) * width;
+      ctx.beginPath();
+      ctx.moveTo(pos, 0);
+      ctx.lineTo(pos, height);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, pos);
+      ctx.lineTo(width, pos);
+      ctx.stroke();
+    }
+
+    // Arterial Road Corridor (Marathahalli-Bellandur ORR Highway)
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.74);
+    ctx.bezierCurveTo(width * 0.35, height * 0.65, width * 0.65, height * 0.52, width, height * 0.42);
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)'; // Warm golden road corridor
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = 'rgba(245, 158, 11, 0.35)';
+    ctx.shadowBlur = 6;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, height * 0.74);
+    ctx.bezierCurveTo(width * 0.35, height * 0.65, width * 0.65, height * 0.52, width, height * 0.42);
+    ctx.strokeStyle = '#fef3c7'; // Inner road spine marking
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+
     // Composite hillshade relief under water so terrain topography reads clearly
     if (cachedHillshadeRef.current) {
       ctx.save();
-      ctx.globalAlpha = 0.22;
-      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalAlpha = 0.20;
       ctx.drawImage(cachedHillshadeRef.current, 0, 0, width, height);
       ctx.restore();
     }
 
-    // 2. High-Fidelity Fluid Water Surface
-    if (activeDepth) {
-      ctx.save();
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const d = activeDepth[r]?.[c] ?? 0;
-          if (d < 0.01) continue; // Pavement is dry below 1cm
+    // 2. Realistic Fluid Flood Inundation Layer via Bilinear Upsampling & Square-Root Color Scale
+    if (effectiveDepthFrame) {
+      const upW = 128;
+      const upH = 128;
+      const upCanvas = document.createElement('canvas');
+      upCanvas.width = upW;
+      upCanvas.height = upH;
+      const upCtx = upCanvas.getContext('2d');
 
-          const x = c * cellW;
-          const y = r * cellH;
+      if (upCtx) {
+        const imgData = upCtx.createImageData(upW, upH);
+        const data = imgData.data;
 
-          // Non-linear depth mapping
-          const normD = Math.min(1, Math.sqrt(d / 1.5));
-          const ripple = Math.sin((r * 4 + c * 3 + animTick * 0.08) % (Math.PI * 2)) * 0.03;
-          const alpha = Math.min(0.92, Math.max(0.42, 0.45 + normD * 0.45 + ripple));
+        for (let y = 0; y < upH; y++) {
+          const gy = (y / (upH - 1)) * (rows - 1);
+          const r0 = Math.floor(gy);
+          const r1 = Math.min(rows - 1, r0 + 1);
+          const fy = gy - r0;
 
-          // Physical depth color ramp:
-          // < 0.05m: thin sheet flow (sky-blue)
-          // 0.05m - 0.30m: street runoff (cyan/blue)
-          // 0.30m - 0.70m: impassable road (deep blue)
-          // > 0.70m: deep inundation (midnight indigo)
-          let rVal: number, gVal: number, bVal: number;
-          if (d < 0.05) {
-            const t = d / 0.05;
-            rVal = Math.floor(56 + t * (6 - 56));
-            gVal = Math.floor(189 + t * (182 - 189));
-            bVal = Math.floor(248 + t * (212 - 248));
-          } else if (d < 0.3) {
-            const t = (d - 0.05) / 0.25;
-            rVal = Math.floor(6 + t * (2 - 6));
-            gVal = Math.floor(182 + t * (132 - 182));
-            bVal = Math.floor(212 + t * (199 - 212));
-          } else if (d < 0.7) {
-            const t = (d - 0.3) / 0.4;
-            rVal = Math.floor(2 + t * (30 - 2));
-            gVal = Math.floor(132 + t * (64 - 132));
-            bVal = Math.floor(199 + t * (175 - 199));
-          } else {
-            const t = Math.min(1, (d - 0.7) / 1.0);
-            rVal = Math.floor(30 + t * (15 - 30));
-            gVal = Math.floor(64 + t * (23 - 64));
-            bVal = Math.floor(175 + t * (42 - 175));
-          }
+          for (let x = 0; x < upW; x++) {
+            const gx = (x / (upW - 1)) * (cols - 1);
+            const c0 = Math.floor(gx);
+            const c1 = Math.min(cols - 1, c0 + 1);
+            const fx = gx - c0;
 
-          ctx.fillStyle = `rgba(${rVal}, ${gVal}, ${bVal}, ${alpha})`;
-          ctx.fillRect(x, y, cellW + 0.5, cellH + 0.5);
+            const d00 = effectiveDepthFrame[r0]?.[c0] ?? 0;
+            const d01 = effectiveDepthFrame[r0]?.[c1] ?? 0;
+            const d10 = effectiveDepthFrame[r1]?.[c0] ?? 0;
+            const d11 = effectiveDepthFrame[r1]?.[c1] ?? 0;
 
-          // Specular water sheen along surface borders
-          if (d >= 0.15 && (r + c) % 3 === 0) {
-            ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, 0.18 + ripple)})`;
-            ctx.fillRect(x + cellW * 0.2, y + cellH * 0.15, cellW * 0.6, cellH * 0.25);
+            // Bilinear interpolation across 4 grid cell corners
+            const d =
+              (1 - fx) * (1 - fy) * d00 +
+              fx * (1 - fy) * d01 +
+              (1 - fx) * fy * d10 +
+              fx * fy * d11;
+
+            const idx = (y * upW + x) * 4;
+
+            // Depths under 1 cm (0.01 m) remain transparent
+            if (d >= 0.01) {
+              // Non-linear square-root perceptual depth scaling: 0 at 1cm, 1.0 at 2.0m depth
+              const t = Math.min(1.0, Math.sqrt((d - 0.01) / 1.99));
+
+              let r: number, g: number, b: number, a: number;
+              if (t < 0.25) {
+                // 1cm - 15cm: Sheet flow (translucent sky-cyan)
+                const s = t / 0.25;
+                r = Math.round(56 * (1 - s) + 14 * s);
+                g = Math.round(189 * (1 - s) + 165 * s);
+                b = Math.round(248 * (1 - s) + 233 * s);
+                a = Math.round((0.35 + 0.35 * s) * 255);
+              } else if (t < 0.55) {
+                // 15cm - 60cm: Street curb flow (vibrant azure)
+                const s = (t - 0.25) / 0.3;
+                r = Math.round(14 * (1 - s) + 2 * s);
+                g = Math.round(165 * (1 - s) + 132 * s);
+                b = Math.round(233 * (1 - s) + 199 * s);
+                a = Math.round((0.70 + 0.15 * s) * 255);
+              } else if (t < 0.85) {
+                // 60cm - 1.4m: Deep car-submerging flow (royal cobalt)
+                const s = (t - 0.55) / 0.3;
+                r = Math.round(2 * (1 - s) + 30 * s);
+                g = Math.round(132 * (1 - s) + 64 * s);
+                b = Math.round(199 * (1 - s) + 175 * s);
+                a = Math.round((0.85 + 0.08 * s) * 255);
+              } else {
+                // > 1.4m: Oceanic indigo retention storage
+                const s = (t - 0.85) / 0.15;
+                r = Math.round(30 * (1 - s) + 15 * s);
+                g = Math.round(64 * (1 - s) + 23 * s);
+                b = Math.round(175 * (1 - s) + 72 * s);
+                a = Math.round((0.93 + 0.05 * s) * 255);
+              }
+
+              data[idx] = r;
+              data[idx + 1] = g;
+              data[idx + 2] = b;
+              data[idx + 3] = a;
+            }
           }
         }
+        upCtx.putImageData(imgData, 0, 0);
+
+        // Composite smooth upsampled fluid onto main canvas with browser filtering
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(upCanvas, 0, 0, width, height);
+
+        // Specular water sheen overlay for realistic liquid appearance
+        ctx.globalCompositeOperation = 'screen';
+        const sheenGrad = ctx.createLinearGradient(0, 0, width, height);
+        sheenGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
+        sheenGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.05)');
+        sheenGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+        ctx.fillStyle = sheenGrad;
+        ctx.fillRect(0, 0, width, height);
+        ctx.restore();
       }
-      ctx.restore();
     }
 
-    // Subtle 64x64 grid lines
-    if (showGrid) {
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
-      ctx.lineWidth = 0.5;
-      for (let r = 0; r <= rows; r += 4) {
-        ctx.beginPath();
-        ctx.moveTo(0, r * cellH);
-        ctx.lineTo(width, r * cellH);
-        ctx.stroke();
-      }
-      for (let c = 0; c <= cols; c += 4) {
-        ctx.beginPath();
-        ctx.moveTo(c * cellW, 0);
-        ctx.lineTo(c * cellW, height);
-        ctx.stroke();
-      }
-    }
-
-    // Indicative Flow Vectors
-    if (showFlowVectors && terrain) {
+    // 3. Indicative Flow Direction Streamlines (derived from water surface gradient eta = z + h)
+    if (showFlowVectors && effectiveDepthFrame && terrain) {
       ctx.save();
       const elev = terrain.elevation;
-      const step = 4;
-      ctx.fillStyle = 'rgba(2, 132, 199, 0.85)';
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.lineWidth = 1;
+      const dx = terrain.dx_m || 60.9;
+      const offsetFrac = (animTick % 20) / 20.0;
 
-      for (let r = 2; r < rows; r += step) {
-        for (let c = 2; c < cols; c += step) {
-          const depth = activeDepth?.[r]?.[c] ?? 0;
-          if (depth < 0.03) continue;
+      // Sample every 4th cell for clean, readable vector spacing
+      for (let r = 2; r < rows - 2; r += 4) {
+        for (let c = 2; c < cols - 2; c += 4) {
+          const h = effectiveDepthFrame[r]?.[c] ?? 0;
+          if (h >= 0.02) {
+            const etaW = (elev[r]?.[c - 1] ?? 0) + (effectiveDepthFrame[r]?.[c - 1] ?? 0);
+            const etaE = (elev[r]?.[c + 1] ?? 0) + (effectiveDepthFrame[r]?.[c + 1] ?? 0);
+            const etaN = (elev[r - 1]?.[c] ?? 0) + (effectiveDepthFrame[r - 1]?.[c] ?? 0);
+            const etaS = (elev[r + 1]?.[c] ?? 0) + (effectiveDepthFrame[r + 1]?.[c] ?? 0);
 
-          const rUp = Math.max(0, r - 1);
-          const rDown = Math.min(rows - 1, r + 1);
-          const cLeft = Math.max(0, c - 1);
-          const cRight = Math.min(cols - 1, c + 1);
+            const dEtadx = (etaE - etaW) / (2 * dx);
+            const dEtady = (etaS - etaN) / (2 * dx);
+            const gradMag = Math.sqrt(dEtadx * dEtadx + dEtady * dEtady);
 
-          const dzdx = (elev[r][cRight] - elev[r][cLeft]) / 2;
-          const dzdy = (elev[rDown][c] - elev[rUp][c]) / 2;
+            if (gradMag > 0.0002) {
+              const angle = Math.atan2(-dEtady, -dEtadx); // Downhill flow angle
+              const centerX = (c + 0.5) * cellW;
+              const centerY = (r + 0.5) * cellH;
 
-          let vx = -dzdx;
-          let vy = -dzdy;
-          const mag = Math.hypot(vx, vy);
+              const arrowLen = Math.min(cellW * 1.5, Math.max(cellW * 0.7, gradMag * 4000));
+              const startX = centerX - Math.cos(angle) * (arrowLen * 0.5) + Math.cos(angle) * (offsetFrac * 6);
+              const startY = centerY - Math.sin(angle) * (arrowLen * 0.5) + Math.sin(angle) * (offsetFrac * 6);
+              const endX = startX + Math.cos(angle) * arrowLen;
+              const endY = startY + Math.sin(angle) * arrowLen;
 
-          if (mag > 0.05) {
-            vx /= mag;
-            vy /= mag;
-            const cx = (c + 0.5) * cellW;
-            const cy = (r + 0.5) * cellH;
-            const arrowLen = Math.min(cellW * 1.6, 10 + depth * 5);
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+              ctx.lineWidth = 1.2;
+              ctx.beginPath();
+              ctx.moveTo(startX, startY);
+              ctx.lineTo(endX, endY);
+              ctx.stroke();
 
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.lineTo(cx + vx * arrowLen, cy + vy * arrowLen);
-            ctx.stroke();
-
-            const angle = Math.atan2(vy, vx);
-            const headLen = 3.5;
-            ctx.beginPath();
-            ctx.moveTo(cx + vx * arrowLen, cy + vy * arrowLen);
-            ctx.lineTo(
-              cx + vx * arrowLen - headLen * Math.cos(angle - Math.PI / 6),
-              cy + vy * arrowLen - headLen * Math.sin(angle - Math.PI / 6)
-            );
-            ctx.lineTo(
-              cx + vx * arrowLen - headLen * Math.cos(angle + Math.PI / 6),
-              cy + vy * arrowLen - headLen * Math.sin(angle + Math.PI / 6)
-            );
-            ctx.closePath();
-            ctx.fill();
+              const tipSize = 3;
+              ctx.fillStyle = '#ffffff';
+              ctx.beginPath();
+              ctx.moveTo(endX, endY);
+              ctx.lineTo(
+                endX - tipSize * Math.cos(angle - Math.PI / 6),
+                endY - tipSize * Math.sin(angle - Math.PI / 6)
+              );
+              ctx.lineTo(
+                endX - tipSize * Math.cos(angle + Math.PI / 6),
+                endY - tipSize * Math.sin(angle + Math.PI / 6)
+              );
+              ctx.closePath();
+              ctx.fill();
+            }
           }
         }
       }
       ctx.restore();
     }
 
-    // Active Probe Pin Marker (red circle with white center)
+    // 4. Active Probe Pin Marker (red circle with white center)
     const probeCell = selectedProbeCell || { row: 38, col: 26 };
     const pinX = (probeCell.col + 0.5) * cellW;
     const pinY = (probeCell.row + 0.5) * cellH;
@@ -381,7 +442,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   }, [
     terrain,
     depthFrame,
-    activeDepth,
+    effectiveDepthFrame,
     rows,
     cols,
     minElev,
@@ -657,7 +718,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         )}
       </div>
 
-      {/* Colormap Legend Scale */}
+      {/* Colormap Legend Scale (Square-Root Non-Linear Perceptual Ramp) */}
       <div className="flex flex-col gap-1.5 pt-1">
         <div className="h-2 w-full rounded-full overflow-hidden flex shadow-inner border border-slate-200">
           <div className="w-[12%] bg-slate-200" title="Dry pavement (< 0.01m / 1cm)" />
