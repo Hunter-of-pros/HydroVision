@@ -24,7 +24,7 @@ This contract establishes the strict interface boundary between:
 |---|---|---|---|
 | **Grid Dimensions** | 64 rows x 64 columns | Grid cells | Regular Cartesian mesh |
 | **Grid Orientation** | Row 0 = North, Col 0 = West | Spatial index | Row index increases Southward; Col index increases Eastward |
-| **Cell Size ($dx, dy$)** | 40.0 meters | $m$ | $64 \times 40 = 2560\text{ m} \approx 2.56\text{ km}$ square catchment |
+| **Cell Size ($dx, dy$)** | 60.9 meters | $m$ | $64 \times 60.9 = 3897.6\text{ m} \approx 3.90\text{ km}$ square catchment |
 | **Elevation ($z$)** | Floating point | $m$ (a.s.l.) | Topographic elevation above sea level |
 | **Water Depth ($h$)** | Floating point $\ge 0.0$ | $m$ | Above ground surface; no NaNs, no negative values |
 | **Rainfall Rate ($R$)** | Floating point | $mm/hr$ | Uniform spatial precipitation over catchment |
@@ -51,11 +51,11 @@ Returns:
 ```json
 {
   "elevation": "[[float; 64]; 64]",
-  "dx_m": 40.0,
-  "bounds": [12.920, 77.560, 12.943, 77.583],
+  "dx_m": 60.9,
+  "bounds": [12.923194, 77.67625, 12.95875, 77.711806],
   "shape": [64, 64],
-  "min_elevation": 81.2,
-  "max_elevation": 100.0
+  "min_elevation": 863.98,
+  "max_elevation": 901.81
 }
 ```
 
@@ -124,4 +124,11 @@ Verification metrics comparing surrogate prediction $\hat{h}_{t,i,j}$ against so
 
 7. **Speedup Factor**:
    $$\text{Speedup} = \frac{\text{Solver Runtime } [s]}{\text{Surrogate Inference Runtime } [s]}$$
+
+---
+
+## 6. Changelog
+
+- **v1.0 (2026-11-14)**: Updated `cell_size_m` from synthetic 40.0m to real Copernicus GLO-30 calibrated 60.9m ($64 \times 64$, 3.90 km catchment); updated real bounds `[12.923194, 77.676250, 12.958750, 77.711806]` for Marathahalli–Bellandur ORR corridor.
+
 

@@ -1,78 +1,87 @@
-# Digital Elevation Model (DEM) Preparation Guide
+# Digital Elevation Model (DEM) Preparation Guide — Real Terrain Pipeline
 
-This guide details how to acquire, preprocess, and condition digital elevation data for HydroVision.
-
----
-
-## 1. Topographic Data Sources
-- **Copernicus GLO-30**: Global 30-meter elevation model (recommended for urban areas outside the US).
-- **USGS 3D Elevation Program (3DEP)**: High-resolution (1m to 10m) lidar-derived DEMs for US municipalities.
-- **OpenTopography**: API access to high-resolution point clouds and bare-earth terrain models.
-- **Synthetic Generator**: Built-in `hydrovision_ml.terrain.make_synthetic_dem` for offline testing.
+This guide documents the exact steps used to extract, verify, condition, and downsample the real-world digital elevation model for the Marathahalli–Bellandur Outer Ring Road (ORR) catchment in East Bengaluru.
 
 ---
 
-## 2. Spatial Extent & Grid Definition
-- **Catchment Area**: $2.56\text{ km} \times 2.56\text{ km}$ ($64 \times 64$ cells at $40.0\text{ m}$ spacing).
-- **Coordinate Reference System (CRS)**: Must be reprojected to a local Universal Transverse Mercator (UTM) zone with meter units (e.g., EPSG:32643 for Bangalore, India) prior to rasterization.
-- **Orientation**: Array index [0, 0] must correspond to North-West corner.
+## 1. Raw Dataset Provenance & Attribution
+
+- **Source File**: `output_hh.tif` (extracted from `rasters_COP30.tar.gz`)
+- **Origin**: Copernicus GLO-30 Digital Elevation Model accessed via OpenTopography
+- **Attribution & Licence**:
+  > Produced using Copernicus WorldDEM-30 © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018 provided under COPERNICUS by the European Union and ESA; all rights reserved.
+- **Raw Properties**:
+  - Dimensions: 155 rows × 140 columns
+  - Data Type: `float32` (elevations in meters a.s.l.)
+  - Coordinate Reference System: `EPSG:4326` (WGS 84 geographic coordinates)
+  - Native Resolution: 1 arc-second ($\approx 0.000277778^\circ$)
+  - Native Cell Size: E-W $dx \approx 30.14\text{ m}$, N-S $dy \approx 30.73\text{ m}$ (mean latitude $12.945^\circ\text{ N}$)
+  - Bounds: Lon $77.672917^\circ\text{ E}$ to $77.711806^\circ\text{ E}$, Lat $12.923194^\circ\text{ N}$ to $12.966250^\circ\text{ N}$
+  - Elevation Range: $857.75\text{ m}$ to $910.38\text{ m}$ (Relief: $52.63\text{ m}$), NaN count: 0
 
 ---
 
-## 3. Preprocessing with Rasterio & GDAL
+## 2. Ingestion & Storage Rules
 
-### Step 3.1: Reproject and Crop with GDAL
-```bash
-# Reproject source WGS84 GeoTIFF to local UTM (EPSG:32643 for Bangalore) and crop to 2.56 km square
-gdalwarp -t_srs EPSG:32643 \
-  -te 777000 1428000 779560 1430560 \
-  -tr 40.0 40.0 \
-  -r bilinear \
-  raw_dem_wgs84.tif cropped_utm_40m.tif
-
-# Verify dimensions are exactly 64 x 64
-gdalinfo cropped_utm_40m.tif | grep "Size is"
-# Output should report: Size is 64, 64
-```
-
-### Step 3.2: Export to `terrain.npz` with Python & Rasterio
-```python
-import rasterio
-import numpy as np
-
-with rasterio.open("cropped_utm_40m.tif") as src:
-    elevation = src.read(1).astype(np.float64)
-    # Replace NoData values with minimum valid elevation
-    elevation[elevation == src.nodata] = np.nanmin(elevation)
-    bounds = list(src.bounds) # [minx, miny, maxx, maxy]
-
-# Calculate second-order central spatial slopes
-slope_y, slope_x = np.gradient(elevation, 40.0)
-
-np.savez_compressed(
-    "artifacts/data/terrain.npz",
-    elevation=elevation,
-    slope_x=slope_x,
-    slope_y=slope_y,
-    bounds=bounds,
-)
-print(f"Exported terrain.npz: shape={elevation.shape}, elev=[{elevation.min():.1f}m, {elevation.max():.1f}m]")
-```
+1. The raw GeoTIFF is extracted outside OneDrive to avoid cloud sync lock issues:
+   `C:/hydrovision_data/dem/marathahalli.tif`
+2. **Git Policy**: `*.tif`, `*.tiff`, `*.tar.gz`, and `*.gz` are strictly added to `.gitignore`. Raw raster binaries are never committed to Git. Only the conditioned derivative `artifacts/data/terrain.npz` is tracked.
 
 ---
 
-## 4. Hydrological Conditioning & Sink Handling
-- Identification of natural depressions vs. digital elevation artifacts.
-- Evaluating sink-filling algorithms vs. depression storage preservation.
-- Verifying overland flow connectivity from North-West uplands to South-East drainage outlets.
+## 3. Window Selection: Candidate 3 (ORR Corridor)
+
+From the 155 × 140 native raster, three 128 × 128 candidate windows were evaluated. **Candidate 3** was selected:
+- **Slice**: `rows [27:155], cols [12:140]`
+- **Geographic Extent**:
+  - South: $12.923194^\circ\text{ N}$
+  - West: $77.676250^\circ\text{ E}$
+  - North: $12.958750^\circ\text{ N}$
+  - East: $77.711806^\circ\text{ E}$
+- **Why Candidate 3**:
+  1. Captures the high northern ridge in Marathahalli (~909m) down into the Bellandur lake basin in the south (~857m).
+  2. Centers the Outer Ring Road flood-prone transit corridor.
+  3. Lowest boundary drainage sits on the eastern/southern edge, avoiding unnatural central lake retention.
+  4. Lowest structural depression count (162 raw sinks vs 172 in NW window).
 
 ---
 
-## 5. Exporting to `artifacts/data/terrain.npz`
-- Saving NumPy archive with keys:
-  - `elevation`: 2D float64 array of shape $(64, 64)$
-  - `slope_x`: finite difference gradient $\partial z / \partial x$
-  - `slope_y`: finite difference gradient $\partial z / \partial y$
-  - `bounds`: `[min_lat, min_lon, max_lat, max_lon]`
-- Performing automated QA checks with `hydrovision_ml.terrain.dem_quality_check()`.
+## 4. Downsampling & Hydrological Conditioning
 
+To match CONTRACT.md's canonical $64 \times 64$ grid:
+1. **2× Block Mean Downsampling** (NOT nearest neighbor):
+   ```python
+   dem_64_raw = native_128.reshape(64, 2, 64, 2).mean(axis=(1, 3))
+   ```
+2. **Light Gaussian Smoothing** ($\sigma = 0.8$):
+   Filters out 30m high-frequency DSM noise (individual commercial buildings and tree canopies) while preserving true catchment-scale ridges and drainage corridors.
+3. **Effective Cell Size**:
+   - E-W cell size $dx = 60.283\text{ m}$
+   - N-S cell size $dy = 61.461\text{ m}$
+   - Mean effective resolution: **$60.9\text{ m}$** (aspect ratio difference: $1.92\% < 3\%$).
+   - Total Catchment Size: $3.86\text{ km} \times 3.93\text{ km} \approx 15.18\text{ km}^2$.
+
+---
+
+## 5. Artifact Packaging (`artifacts/data/terrain.npz`)
+
+Exported with `numpy.savez_compressed` containing:
+- `dem_m`: 2D `float32` array $(64, 64)$
+- `elevation`: 2D `float64` array $(64, 64)$
+- `slope_x`: East-West finite-difference slope $\partial z / \partial x$
+- `slope_y`: North-South finite-difference slope $\partial z / \partial y$
+- `bounds`: `[12.923194, 77.676250, 12.958750, 77.711806]` $[S, W, N, E]$
+- `cell_size_m`: $60.9$
+- `dx_m`: $60.9$
+- `is_synthetic`: `False`
+- `smoothing_sigma`: $0.8$
+- `window_used`: `[27, 155, 12, 140]`
+- `source`: Official Copernicus citation string
+
+---
+
+## 6. Diagnostic Outputs
+
+- `artifacts/reports/dem_candidates.png`: 3-way candidate comparison.
+- `artifacts/reports/dem.png`: High-resolution elevation heatmap with contours + standalone hillshade.
+- `artifacts/reports/solver_real_terrain.png`: 4-frame 2D SWE inundation simulation under a 100 mm/hr cloudburst.

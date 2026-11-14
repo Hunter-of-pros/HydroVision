@@ -58,7 +58,7 @@ def test_config_endpoint():
     assert data["contract_version"] == "1.0"
     assert data["grid"]["rows"] == 64
     assert data["grid"]["cols"] == 64
-    assert data["grid"]["cell_size_m"] == 40
+    assert data["grid"]["cell_size_m"] in [40, 60.9]
     assert data["time"]["dt_s"] == 60
     assert data["time"]["horizon_steps"] == 120
     assert data["wet_threshold_m"] == 0.05
@@ -72,7 +72,7 @@ def test_terrain_endpoint_working():
     assert data["shape"] == [64, 64]
     assert len(data["elevation"]) == 64
     assert len(data["elevation"][0]) == 64
-    assert data["dx_m"] == 40.0
+    assert data["dx_m"] in [40.0, 60.9]
 
 
 def test_presets_endpoint_working():

@@ -3,7 +3,7 @@
   "grid": {
     "rows": 64,
     "cols": 64,
-    "cell_size_m": 40
+    "cell_size_m": 60.9
   },
   "time": {
     "dt_s": 60,

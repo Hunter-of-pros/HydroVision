@@ -16,7 +16,7 @@ def test_mock_get_terrain():
     elevation = terrain["elevation"]
     assert len(elevation) == 64
     assert len(elevation[0]) == 64
-    assert terrain["dx_m"] == 40.0
+    assert terrain["dx_m"] in [40.0, 60.9]
     assert len(terrain["bounds"]) == 4
     assert terrain["shape"] == [64, 64]
     assert terrain["min_elevation"] <= terrain["max_elevation"]

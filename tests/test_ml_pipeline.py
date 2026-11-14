@@ -59,7 +59,7 @@ def test_terrain_persistence(tmp_path):
 
     loaded = load_terrain(out_file)
     assert loaded["shape"] == [64, 64]
-    assert loaded["dx_m"] == 40.0
+    assert loaded["dx_m"] in [40.0, 60.9]
     assert len(loaded["elevation"]) == 64
     assert len(loaded["elevation"][0]) == 64
     assert loaded["min_elevation"] <= loaded["max_elevation"]

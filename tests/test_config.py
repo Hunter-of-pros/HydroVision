@@ -23,10 +23,10 @@ def test_config_grid_specification():
 
     assert ROWS == 64
     assert COLS == 64
-    assert CELL_SIZE_M == 40
+    assert CELL_SIZE_M == 60.9
     assert GRID["rows"] == 64
     assert GRID["cols"] == 64
-    assert GRID["cell_size_m"] == 40
+    assert GRID["cell_size_m"] == 60.9
 
 
 def test_config_time_and_thresholds():

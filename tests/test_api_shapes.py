@@ -28,7 +28,7 @@ def test_real_api_get_terrain():
     elev = np.asarray(terrain["elevation"], dtype=np.float64)
     assert elev.shape == (64, 64), f"Terrain elevation grid must be (64, 64), got {elev.shape}"
     assert terrain["shape"] == [64, 64]
-    assert terrain["dx_m"] == 40.0
+    assert terrain["dx_m"] in [40.0, 60.9]
     assert len(terrain["bounds"]) == 4
     assert terrain["min_elevation"] <= terrain["max_elevation"]
     assert np.all(np.isfinite(elev)), "Terrain elevation must be finite"

@@ -50,4 +50,7 @@ artifacts/reports/*.pdf
 !artifacts/models/normalizer.json
 !artifacts/data/terrain.npz
 !artifacts/reports/*.json
+!artifacts/reports/dem.png
+!artifacts/reports/dem_candidates.png
+!artifacts/reports/solver_real_terrain.png
 
