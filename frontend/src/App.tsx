@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Header } from './components/Header';
 import { Controls } from './components/Controls';
 import { Timeline } from './components/Timeline';
 import { Hyetograph } from './components/Hyetograph';
 import { MapViewer } from './components/MapViewer';
 import { ComparisonView } from './components/ComparisonView';
+import { PointProbe } from './components/PointProbe';
+import { HazardMetrics } from './components/HazardMetrics';
 import {
   fetchHealth,
   fetchTerrain,
@@ -39,6 +41,11 @@ export const App: React.FC = () => {
   const [params, setParams] = useState<ForecastParams>(DEFAULT_PARAMS);
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
   const [compareResult, setCompareResult] = useState<CompareResult | null>(null);
+  const [selectedProbeCell, setSelectedProbeCell] = useState<{
+    row: number;
+    col: number;
+    elevation: number;
+  } | null>(null);
 
   const [currentFrame, setCurrentFrame] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -126,6 +133,13 @@ export const App: React.FC = () => {
     forecastResult?.depth_frames[0] ||
     null;
 
+  const depthTimeseries = useMemo(() => {
+    if (!selectedProbeCell || !forecastResult?.depth_frames) return [];
+    return forecastResult.depth_frames.map(
+      (frame) => frame[selectedProbeCell.row]?.[selectedProbeCell.col] ?? 0
+    );
+  }, [selectedProbeCell, forecastResult]);
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
       <Header
@@ -151,6 +165,9 @@ export const App: React.FC = () => {
           </div>
         )}
 
+        {/* Hazard Risk Summary Bar */}
+        <HazardMetrics depthFrame={activeDepthFrame} />
+
         {/* Comparison View or Main Map View */}
         {compareResult ? (
           <ComparisonView
@@ -161,12 +178,22 @@ export const App: React.FC = () => {
           />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Left Column: Map Viewer */}
+            {/* Left Column: Map Viewer & Probe */}
             <div className="lg:col-span-7 flex flex-col gap-4">
               <MapViewer
                 terrain={terrain}
                 depthFrame={activeDepthFrame}
                 title="⚡ Live Neural Surrogate Forecast Overlay"
+                selectedProbeCell={selectedProbeCell}
+                onSelectProbeCell={setSelectedProbeCell}
+              />
+
+              <PointProbe
+                selectedCell={selectedProbeCell}
+                depthTimeseries={depthTimeseries}
+                currentFrame={currentFrame}
+                totalFrames={totalFrames}
+                onClear={() => setSelectedProbeCell(null)}
               />
             </div>
 

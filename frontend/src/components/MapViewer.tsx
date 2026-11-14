@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Compass, Layers } from 'lucide-react';
+import { Compass, Layers, Download, MapPin } from 'lucide-react';
 import { TerrainData } from '../types';
 
 interface MapViewerProps {
@@ -7,6 +7,8 @@ interface MapViewerProps {
   depthFrame: number[][] | null; // 64x64 depth in meters
   title?: string;
   isSolverComparison?: boolean;
+  selectedProbeCell?: { row: number; col: number } | null;
+  onSelectProbeCell?: (cell: { row: number; col: number; elevation: number } | null) => void;
 }
 
 export const MapViewer: React.FC<MapViewerProps> = ({
@@ -14,6 +16,8 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   depthFrame,
   title = 'Urban Flood Inundation Map',
   isSolverComparison = false,
+  selectedProbeCell,
+  onSelectProbeCell,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hoverCell, setHoverCell] = useState<{
@@ -59,7 +63,6 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
         // Base terrain shading (topographic slope descending toward SE)
         const normElev = Math.max(0, Math.min(1, (elev - minElev) / Math.max(1, maxElev - minElev)));
-        // Dark slate to warm charcoal terrain gradient
         const terrainLum = Math.floor(18 + normElev * 28);
         let rColor = terrainLum;
         let gColor = terrainLum + 4;
@@ -97,7 +100,30 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         }
       }
     }
-  }, [terrain, depthFrame, rows, cols, minElev, maxElev, showGrid, smoothInterpolation]);
+
+    // Draw active probe pin marker if selected
+    if (selectedProbeCell) {
+      const pinX = (selectedProbeCell.col + 0.5) * cellW;
+      const pinY = (selectedProbeCell.row + 0.5) * cellH;
+
+      ctx.save();
+      // Outer pulse ring
+      ctx.beginPath();
+      ctx.arc(pinX, pinY, 9, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.8)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Inner glowing point
+      ctx.beginPath();
+      ctx.arc(pinX, pinY, 4, 0, 2 * Math.PI);
+      ctx.fillStyle = '#06b6d4';
+      ctx.shadowColor = '#22d3ee';
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.restore();
+    }
+  }, [terrain, depthFrame, rows, cols, minElev, maxElev, showGrid, smoothInterpolation, selectedProbeCell]);
 
   // Handle mouse move to extract cell diagnostics
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -120,6 +146,37 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
   const handleMouseLeave = () => {
     setHoverCell(null);
+  };
+
+  // Handle click to drop/toggle probe pin
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!onSelectProbeCell || !terrain) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const col = Math.floor((x / rect.width) * cols);
+    const row = Math.floor((y / rect.height) * rows);
+
+    if (row >= 0 && row < rows && col >= 0 && col < cols) {
+      const elevation = terrain.elevation[row]?.[col] ?? 0;
+      onSelectProbeCell({ row, col, elevation });
+    }
+  };
+
+  // Export current canvas frame as high-resolution PNG snapshot
+  const handleDownloadSnapshot = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const link = document.createElement('a');
+    link.download = `hydrovision-flood-map-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
   return (
@@ -151,6 +208,15 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             <Layers className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Grid</span>
           </button>
+
+          <button
+            onClick={handleDownloadSnapshot}
+            className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs flex items-center gap-1 transition"
+            title="Export high-res snapshot PNG"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Export</span>
+          </button>
         </div>
       </div>
 
@@ -160,6 +226,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           ref={canvasRef}
           width={512}
           height={512}
+          onClick={handleCanvasClick}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           className="w-full h-full object-contain cursor-crosshair"
@@ -170,6 +237,14 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           <Compass className="w-4 h-4 text-cyan-400" />
           <span className="text-[9px] font-bold text-slate-300 font-mono">N</span>
         </div>
+
+        {/* Selected Probe Badge */}
+        {selectedProbeCell && (
+          <div className="absolute top-3 left-3 bg-cyan-950/90 backdrop-blur border border-cyan-500/50 rounded-lg px-2.5 py-1 text-[11px] text-cyan-300 font-mono shadow flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}]</span>
+          </div>
+        )}
 
         {/* Live Hover Inspector Overlay */}
         {hoverCell && (
