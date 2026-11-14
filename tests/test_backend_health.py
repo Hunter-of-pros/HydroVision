@@ -58,28 +58,40 @@ def test_presets_endpoint_working():
     assert "params" in first
 
 
-def test_forecast_endpoint_returns_501_stub():
+def test_forecast_endpoint_mock_execution():
     payload = {
         "rain_intensity_mmhr": 80.0,
         "rain_duration_min": 45.0,
         "rain_shape": "constant",
         "drain_capacity_mmhr": 0.0,
         "horizon_steps": 120,
+        "frame_stride": 30,
     }
     response = client.post("/forecast", json=payload)
-    assert response.status_code == 501
-    assert "Scheduled for Phase 7" in response.json()["detail"]
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["times_s"]) == 5  # 121 subsampled with stride 30 = 5 frames
+    assert len(data["depth_frames"]) == 5
+    assert data["peak_depth_m"] >= 0.0
+    assert data["frame_stride"] == 30
+    assert data["model_name"] == "mock-v0"
 
 
-def test_compare_endpoint_returns_501_stub():
+def test_compare_endpoint_mock_execution():
     payload = {
         "rain_intensity_mmhr": 80.0,
         "rain_duration_min": 45.0,
         "rain_shape": "constant",
         "drain_capacity_mmhr": 0.0,
-        "horizon_steps": 120,
+        "horizon_steps": 10,  # Fast run for unit test
+        "frame_stride": 1,
     }
     response = client.post("/compare", json=payload)
-    assert response.status_code == 501
-    assert "Scheduled for Phase 7" in response.json()["detail"]
+    assert response.status_code == 200
+    data = response.json()
+    assert "surrogate" in data
+    assert "solver" in data
+    assert "metrics" in data
+    assert "speedup" in data["metrics"]
+    assert "wet_iou" in data["metrics"]
 
