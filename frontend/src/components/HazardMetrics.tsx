@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Droplets, Info, Layers, Waves, AlertCircle } from 'lucide-react';
+import { Info } from 'lucide-react';
 
 export interface HazardThresholdsConfig {
   source: string;
@@ -26,16 +26,16 @@ export const HazardMetrics: React.FC<HazardMetricsProps> = ({
 }) => {
   if (!depthFrame) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3 animate-pulse">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3 animate-pulse">
         <div className="flex items-center justify-between">
-          <div className="h-4 w-48 bg-slate-800 rounded" />
-          <div className="h-4 w-24 bg-slate-800 rounded" />
+          <div className="h-4 w-48 bg-slate-200 rounded" />
+          <div className="h-4 w-24 bg-slate-200 rounded" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5 h-16 flex flex-col justify-between">
-              <div className="h-2.5 w-20 bg-slate-800 rounded" />
-              <div className="h-4 w-16 bg-slate-700/80 rounded" />
+            <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 h-16 flex flex-col justify-between">
+              <div className="h-2.5 w-20 bg-slate-200 rounded" />
+              <div className="h-4 w-16 bg-slate-300 rounded" />
             </div>
           ))}
         </div>
@@ -80,102 +80,87 @@ export const HazardMetrics: React.FC<HazardMetricsProps> = ({
 
   const floodedPercent = ((stats.wetCells / stats.totalCells) * 100).toFixed(1);
   const impassablePercent = ((stats.impassableCells / stats.totalCells) * 100).toFixed(1);
-
-  // Determine illustrative depth severity indicator (no official municipal terminology)
-  let severityBadge = {
-    label: 'Minimal surface water (< 0.05 m)',
-    color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-  };
-  if (stats.criticalCells > 150 || stats.severeCells > 50) {
-    severityBadge = {
-      label: `Substantial depth (> ${(criticalThreshold * 100).toFixed(0)} cm)`,
-      color: 'text-rose-400 bg-rose-500/10 border-rose-500/20',
-    };
-  } else if (stats.impassableCells > 100) {
-    severityBadge = {
-      label: `Moderate depth (> ${(impassableThreshold * 100).toFixed(0)} cm)`,
-      color: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-    };
-  } else if (stats.wetCells > 50) {
-    severityBadge = {
-      label: 'Minor runoff (> 0.05 m)',
-      color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
-    };
-  }
+  const wetHa = ((stats.wetCells * cellAreaM2) / 10000).toFixed(1);
+  const criticalHa = ((stats.criticalCells * cellAreaM2) / 10000).toFixed(1);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 text-cyan-400" />
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-            Illustrative hazard levels
-            <div className="relative group cursor-help inline-flex items-center">
-              <Info className="w-3.5 h-3.5 text-slate-400 hover:text-cyan-300 transition" />
-              <div className="absolute left-0 bottom-full mb-2 w-72 p-2.5 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl text-[10px] leading-relaxed text-slate-300 hidden group-hover:block z-50 pointer-events-none normal-case font-normal">
-                <span className="font-bold text-amber-300 block mb-0.5">
-                  {thresholds.source}
-                </span>
-                Depth thresholds ({Math.round(impassableThreshold * 100)} cm and {Math.round(criticalThreshold * 100)} cm) are illustrative markers for simulated demonstration and do not constitute an official municipal emergency hazard classification.
-              </div>
-            </div>
-          </h3>
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-4 text-slate-900">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-bold text-slate-800">
+          Illustrative hazard levels
+        </h3>
+        <div className="relative group cursor-help inline-flex items-center">
+          <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 transition" />
+          <div className="absolute right-0 top-full mt-1.5 w-64 p-2.5 bg-white border border-slate-200 rounded-xl shadow-xl text-[10px] leading-relaxed text-slate-700 hidden group-hover:block z-50 pointer-events-none normal-case font-normal">
+            <span className="font-bold text-amber-700 block mb-0.5">
+              {thresholds.source}
+            </span>
+            Depth thresholds ({Math.round(impassableThreshold * 100)} cm and {Math.round(criticalThreshold * 100)} cm) are illustrative markers for simulated demonstration and do not constitute an official municipal emergency hazard classification.
+          </div>
         </div>
-        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${severityBadge.color}`}>
-          {severityBadge.label}
-        </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {/* Surface Inundation Extent */}
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5">
-          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-            <Droplets className="w-3 h-3 text-cyan-400" /> Wetted Area (&ge; 5 cm)
+      <div className="flex flex-col gap-3.5">
+        {/* Row 1: Wetted Area */}
+        <div className="flex flex-col gap-1">
+          <div className="text-[11px] text-slate-500 font-medium">
+            Wetted Area (&ge; 5 cm) &middot; {wetHa} ha inundated
           </div>
-          <div className="text-base font-bold text-white font-mono mt-0.5">
+          <div className="text-3xl font-extrabold text-slate-800 font-mono tracking-tight">
             {floodedPercent}%
           </div>
-          <div className="text-[9px] text-slate-500">
-            {((stats.wetCells * cellAreaM2) / 10000).toFixed(1)} ha inundated
+          <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-sky-400 rounded-full transition-all duration-300"
+              style={{ width: `${Math.min(100, Math.max(0, Number(floodedPercent)))}%` }}
+            />
           </div>
         </div>
 
-        {/* 15 cm Illustrative Threshold */}
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5">
-          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-            <Waves className="w-3 h-3 text-amber-400" /> Depth &ge; {Math.round(impassableThreshold * 100)} cm
+        {/* Row 2: Depth >= 15 cm */}
+        <div className="flex flex-col gap-1">
+          <div className="text-[11px] text-slate-500 font-medium">
+            Depth &ge; {Math.round(impassableThreshold * 100)} cm &middot; {stats.impassableCells} cells
           </div>
-          <div className="text-base font-bold text-amber-300 font-mono mt-0.5">
+          <div className="text-3xl font-extrabold text-[#b45309] font-mono tracking-tight">
             {impassablePercent}%
           </div>
-          <div className="text-[9px] text-slate-500">
-            {stats.impassableCells} cells (&ge; {Math.round(impassableThreshold * 100)} cm)
+          <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-amber-400 rounded-full transition-all duration-300"
+              style={{ width: `${Math.min(100, Math.max(0, Number(impassablePercent)))}%` }}
+            />
           </div>
         </div>
 
-        {/* 30 cm Illustrative Threshold */}
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5">
-          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-            <AlertCircle className="w-3 h-3 text-rose-400" /> Depth &ge; {Math.round(criticalThreshold * 100)} cm
+        {/* Row 3: Depth >= 30 cm */}
+        <div className="flex flex-col gap-1">
+          <div className="text-[11px] text-slate-500 font-medium">
+            Depth &ge; {Math.round(criticalThreshold * 100)} cm &middot; impassable threshold
           </div>
-          <div className="text-base font-bold text-rose-300 font-mono mt-0.5">
-            {stats.criticalCells}
+          <div className="text-3xl font-extrabold text-[#dc2626] font-mono tracking-tight">
+            {criticalHa} ha
           </div>
-          <div className="text-[9px] text-slate-500">
-            {((stats.criticalCells * cellAreaM2) / 10000).toFixed(1)} ha (&ge; {Math.round(criticalThreshold * 100)} cm)
+          <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-rose-500 rounded-full transition-all duration-300"
+              style={{
+                width: `${Math.min(
+                  100,
+                  Math.max(0, (stats.criticalCells / stats.totalCells) * 100 * 3)
+                )}%`,
+              }}
+            />
           </div>
         </div>
 
-        {/* Peak Water Depth */}
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5">
-          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-            <Waves className="w-3 h-3 text-indigo-400" /> Peak Frame Depth
+        {/* Row 4: Peak Frame Depth */}
+        <div className="flex flex-col gap-1">
+          <div className="text-[11px] text-slate-500 font-medium">
+            Peak Frame Depth &middot; Vol {Math.round(stats.totalVolumeM3).toLocaleString()} m³
           </div>
-          <div className="text-base font-bold text-indigo-300 font-mono mt-0.5">
-            {stats.maxDepth.toFixed(3)} m
-          </div>
-          <div className="text-[9px] text-slate-500">
-            Vol: {Math.round(stats.totalVolumeM3).toLocaleString()} m³
+          <div className="text-3xl font-extrabold text-[#1e1b4b] font-mono tracking-tight">
+            {stats.maxDepth.toFixed(2)} m
           </div>
         </div>
       </div>

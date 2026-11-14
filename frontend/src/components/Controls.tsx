@@ -1,16 +1,5 @@
 import React from 'react';
-import {
-  CloudRain,
-  Clock,
-  Sliders,
-  Shield,
-  Zap,
-  Sparkles,
-  Loader2,
-  PlaySquare,
-  BookmarkPlus,
-  History,
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { ForecastParams, PresetItem } from '../types';
 
 interface ControlsProps {
@@ -42,59 +31,68 @@ export const Controls: React.FC<ControlsProps> = ({
   savedRunsCount,
   onOpenDrawer,
 }) => {
+  // Check if current parameters match any preset
+  const isPresetActive = (preset: PresetItem) => {
+    return (
+      params.rain_intensity_mmhr === preset.params.rain_intensity_mmhr &&
+      params.rain_duration_min === preset.params.rain_duration_min &&
+      params.rain_shape === preset.params.rain_shape &&
+      params.drain_capacity_mmhr === preset.params.drain_capacity_mmhr
+    );
+  };
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-5">
-      {/* Preset Scenarios Header */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            Storm Scenarios
-          </label>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+    <div className="flex flex-col gap-4 text-slate-900">
+      {/* 1. Pick a storm Card */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+        <h3 className="text-xs font-bold text-slate-800">1 · Pick a storm</h3>
+        <div className="flex flex-col gap-2">
           {presets.length === 0 ? (
             [1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-14 rounded-xl border border-slate-800 bg-slate-800/30 p-2.5 animate-pulse flex flex-col justify-between"
+                className="h-14 rounded-xl border border-slate-200 bg-slate-50 p-2.5 animate-pulse flex flex-col justify-between"
               >
-                <div className="h-3 w-24 bg-slate-800 rounded" />
-                <div className="h-2 w-36 bg-slate-800/60 rounded" />
+                <div className="h-3 w-24 bg-slate-200 rounded" />
+                <div className="h-2 w-36 bg-slate-100 rounded" />
               </div>
             ))
           ) : (
-            presets.map((preset) => (
-              <button
-                key={preset.id}
-                onClick={() => onSelectPreset(preset)}
-                className="text-left px-3 py-2.5 rounded-xl border border-slate-800 bg-slate-800/40 hover:bg-slate-800 hover:border-slate-700 transition group"
-              >
-                <div className="text-xs font-semibold text-slate-200 group-hover:text-cyan-300">
-                  {preset.name}
-                </div>
-                <div className="text-[10px] text-slate-400 line-clamp-1 mt-0.5">
-                  {preset.description}
-                </div>
-              </button>
-            ))
+            presets.map((preset) => {
+              const active = isPresetActive(preset);
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => onSelectPreset(preset)}
+                  className={`text-left px-3.5 py-2.5 rounded-xl border transition ${
+                    active
+                      ? 'border-[#0e7490] bg-[#f0fdfa] shadow-xs'
+                      : 'border-slate-200 bg-white hover:bg-slate-50'
+                  }`}
+                >
+                  <div className={`text-xs font-bold ${active ? 'text-slate-900' : 'text-slate-800'}`}>
+                    {preset.name}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    {preset.description}
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
       </div>
 
-      <div className="h-px bg-slate-800" />
+      {/* 2. Tune the rain Card */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-4">
+        <h3 className="text-xs font-bold text-slate-800">2 · Tune the rain</h3>
 
-      {/* Main Sliders Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Rainfall Intensity */}
-        <div className="bg-slate-800/40 border border-slate-800/80 rounded-xl p-3.5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-              <CloudRain className="w-4 h-4 text-brand-400" />
-              Peak Intensity
-            </span>
-            <span className="text-sm font-bold text-brand-300 font-mono">
-              {params.rain_intensity_mmhr} <span className="text-xs font-normal text-slate-400">mm/h</span>
+        {/* Peak Intensity */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+            <span>Peak Intensity</span>
+            <span className="font-bold text-[#0e7490] font-mono">
+              {params.rain_intensity_mmhr} mm/h
             </span>
           </div>
           <input
@@ -104,24 +102,16 @@ export const Controls: React.FC<ControlsProps> = ({
             step={5}
             value={params.rain_intensity_mmhr}
             onChange={(e) => onChange({ rain_intensity_mmhr: Number(e.target.value) })}
-            className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-brand-500"
+            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0e7490]"
           />
-          <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-            <span>20 mm/h (Light)</span>
-            <span>80 mm/h (Heavy)</span>
-            <span>150 mm/h (Cloudburst)</span>
-          </div>
         </div>
 
         {/* Storm Duration */}
-        <div className="bg-slate-800/40 border border-slate-800/80 rounded-xl p-3.5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-              <Clock className="w-4 h-4 text-indigo-400" />
-              Storm Duration
-            </span>
-            <span className="text-sm font-bold text-indigo-300 font-mono">
-              {params.rain_duration_min} <span className="text-xs font-normal text-slate-400">min</span>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+            <span>Storm Duration</span>
+            <span className="font-bold text-[#0e7490] font-mono">
+              {params.rain_duration_min} min
             </span>
           </div>
           <input
@@ -131,47 +121,16 @@ export const Controls: React.FC<ControlsProps> = ({
             step={5}
             value={params.rain_duration_min}
             onChange={(e) => onChange({ rain_duration_min: Number(e.target.value) })}
-            className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0e7490]"
           />
-          <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-            <span>15 min (Flash)</span>
-            <span>45 min (Standard)</span>
-            <span>90 min (Prolonged)</span>
-          </div>
         </div>
 
-        {/* Hyetograph Shape */}
-        <div className="bg-slate-800/40 border border-slate-800/80 rounded-xl p-3.5">
-          <label className="text-xs font-medium text-slate-300 flex items-center gap-1.5 mb-2">
-            <Sliders className="w-4 h-4 text-emerald-400" />
-            Rain Profile (Hyetograph)
-          </label>
-          <div className="grid grid-cols-3 gap-1.5">
-            {(['constant', 'triangular', 'double_peak'] as const).map((shape) => (
-              <button
-                key={shape}
-                onClick={() => onChange({ rain_shape: shape })}
-                className={`text-xs py-1.5 px-2 rounded-lg font-medium capitalize transition ${
-                  params.rain_shape === shape
-                    ? 'bg-emerald-500 text-slate-950 shadow-md font-semibold'
-                    : 'bg-slate-800 text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                {shape === 'double_peak' ? 'Double Peak' : shape}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Drainage Capacity */}
-        <div className="bg-slate-800/40 border border-slate-800/80 rounded-xl p-3.5">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
-              <Shield className="w-4 h-4 text-amber-400" />
-              Drain Infiltration Sink
-            </span>
-            <span className="text-sm font-bold text-amber-300 font-mono">
-              {params.drain_capacity_mmhr} <span className="text-xs font-normal text-slate-400">mm/h</span>
+        {/* Drain Infiltration Sink */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-700">
+            <span>Drain Infiltration Sink</span>
+            <span className="font-bold text-[#0e7490] font-mono">
+              {params.drain_capacity_mmhr} mm/h
             </span>
           </div>
           <input
@@ -181,22 +140,37 @@ export const Controls: React.FC<ControlsProps> = ({
             step={2}
             value={params.drain_capacity_mmhr}
             onChange={(e) => onChange({ drain_capacity_mmhr: Number(e.target.value) })}
-            className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+            className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#0e7490]"
           />
-          <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-            <span>0 mm/h (Clogged)</span>
-            <span>15 mm/h (Standard)</span>
-            <span>30 mm/h (Engineered)</span>
+        </div>
+
+        {/* Rain Profile (Hyetograph) */}
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-slate-700">Rain Profile (Hyetograph)</span>
+          <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            {(['constant', 'triangular', 'double_peak'] as const).map((shape) => (
+              <button
+                key={shape}
+                onClick={() => onChange({ rain_shape: shape })}
+                className={`text-[11px] py-1.5 px-2 rounded-lg font-medium capitalize transition text-center ${
+                  params.rain_shape === shape
+                    ? 'bg-white text-slate-900 shadow-xs font-bold border border-slate-200'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {shape === 'double_peak' ? 'Double Peak' : shape}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex flex-wrap items-center gap-3 pt-1">
+      {/* Action Buttons Card */}
+      <div className="flex flex-col gap-2">
         <button
           onClick={onRunForecast}
           disabled={isForecasting || isComparing}
-          className="flex-1 min-w-[200px] flex items-center justify-center gap-2 py-3 px-5 rounded-xl font-semibold bg-gradient-to-r from-brand-600 to-cyan-500 hover:from-brand-500 hover:to-cyan-400 text-white shadow-lg shadow-brand-500/25 active:scale-[0.99] transition disabled:opacity-50"
+          className="w-full py-3 px-4 rounded-xl font-bold bg-[#0e7490] hover:bg-[#0c667e] text-white shadow-sm active:scale-[0.99] transition disabled:opacity-50 flex items-center justify-center gap-2 text-sm"
         >
           {isForecasting ? (
             <>
@@ -204,59 +178,40 @@ export const Controls: React.FC<ControlsProps> = ({
               <span>Simulating Surrogate...</span>
             </>
           ) : (
-            <>
-              <Zap className="w-4 h-4" />
-              <span>Run Neural Forecast</span>
-            </>
+            <span>Run Neural Forecast</span>
           )}
         </button>
 
         <button
           onClick={onRunCompare}
           disabled={isForecasting || isComparing}
-          className="flex-1 min-w-[200px] flex items-center justify-center gap-2 py-3 px-5 rounded-xl font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 active:scale-[0.99] transition disabled:opacity-50 hover:border-indigo-500/50"
+          className="w-full py-2.5 px-4 rounded-xl font-semibold bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 active:scale-[0.99] transition disabled:opacity-50 shadow-xs flex items-center justify-center gap-2 text-xs"
         >
           {isComparing ? (
             <>
-              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
-              <span>Running 2D SWE Solver (~1.5s)...</span>
+              <Loader2 className="w-3.5 h-3.5 animate-spin text-[#0e7490]" />
+              <span>Running Solver (~1.5s)...</span>
             </>
           ) : (
-            <>
-              <PlaySquare className="w-4 h-4 text-indigo-400" />
-              <span>Verify Against Solver</span>
-            </>
+            <span>Verify Against Solver</span>
           )}
         </button>
-      </div>
 
-      {/* Run History and Scenario Save */}
-      <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
         <button
           onClick={onSaveRun}
           disabled={!canSaveRun || savedRunsCount >= 3}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 text-xs font-semibold disabled:opacity-40 transition"
+          className="w-full py-2.5 px-4 rounded-xl font-medium bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 active:scale-[0.99] transition disabled:opacity-40 shadow-xs flex items-center justify-center gap-2 text-xs"
           title="Save current simulation parameters and results (up to 3 runs)"
         >
-          <BookmarkPlus className="w-4 h-4 text-brand-400" />
-          <span>Save Current Run</span>
-          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700/60 text-slate-400">
-            {savedRunsCount} / 3
-          </span>
+          <span>Save Current Run · {savedRunsCount}/3</span>
         </button>
 
         <button
           onClick={onOpenDrawer}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 text-xs font-semibold hover:border-cyan-500/50 transition"
+          className="w-full py-2.5 px-4 rounded-xl font-medium bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 active:scale-[0.99] transition shadow-xs flex items-center justify-center gap-2 text-xs"
           title="Open saved runs history and side-by-side scenario comparison"
         >
-          <History className="w-4 h-4 text-cyan-400" />
-          <span>Compare Scenarios</span>
-          {savedRunsCount > 0 && (
-            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              {savedRunsCount}
-            </span>
-          )}
+          <span>Compare Scenarios · {savedRunsCount}</span>
         </button>
       </div>
     </div>

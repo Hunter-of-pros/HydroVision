@@ -63,45 +63,45 @@ export const RunComparisonView: React.FC<RunComparisonViewProps> = ({
   const timesS = Array.from({ length: totalFrames }, (_, i) => i * 60);
 
   return (
-    <div className="bg-slate-900 border border-brand-500/30 rounded-2xl p-5 shadow-2xl flex flex-col gap-5">
+    <div className="bg-white border border-brand-200 rounded-2xl p-5 shadow-sm flex flex-col gap-5 text-slate-900">
       {/* Top Banner when Mock */}
       {isMock && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between text-xs text-amber-300">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between text-xs text-amber-900 shadow-xs">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
             <span className="font-semibold uppercase tracking-wide">
               MOCK COMPARISON: Deltas computed on simulated surrogate rollouts
             </span>
           </div>
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">
             MOCK
           </span>
         </div>
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 pb-3 border-b border-slate-800">
+      <div className="flex items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30">
+          <div className="p-2.5 rounded-xl bg-brand-50 text-brand-700 border border-brand-200">
             <GitCompare className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
               Side-by-Side "What-If" Scenario Comparison
-              <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 font-mono">
                 Synchronized
               </span>
             </h2>
-            <p className="text-xs text-slate-400">
-              Comparing <strong className="text-slate-200">{runA.name}</strong> vs{' '}
-              <strong className="text-slate-200">{runB.name}</strong>
+            <p className="text-xs text-slate-500">
+              Comparing <strong className="text-slate-800">{runA.name}</strong> vs{' '}
+              <strong className="text-slate-800">{runB.name}</strong>
             </p>
           </div>
         </div>
 
         <button
           onClick={onClose}
-          className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+          className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
           title="Exit scenario comparison view"
         >
           <X className="w-5 h-5" />
@@ -114,24 +114,24 @@ export const RunComparisonView: React.FC<RunComparisonViewProps> = ({
         <div
           className={`border rounded-xl p-4 flex flex-col justify-between ${
             deltaPeak < -0.001
-              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
               : deltaPeak > 0.001
-              ? 'bg-rose-950/40 border-rose-500/40 text-rose-300'
-              : 'bg-slate-800/40 border-slate-700/60 text-slate-300'
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : 'bg-slate-50 border-slate-200 text-slate-800'
           }`}
         >
           <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-semibold">
             <span>Change in Peak Depth</span>
             {deltaPeak < -0.001 ? (
-              <span className="flex items-center gap-1 text-emerald-400">
+              <span className="flex items-center gap-1 text-emerald-700">
                 <ArrowDownRight className="w-3.5 h-3.5" /> Mitigated
               </span>
             ) : deltaPeak > 0.001 ? (
-              <span className="flex items-center gap-1 text-rose-400">
+              <span className="flex items-center gap-1 text-rose-700">
                 <ArrowUpRight className="w-3.5 h-3.5" /> Worsened
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-slate-400">
+              <span className="flex items-center gap-1 text-slate-500">
                 <Minus className="w-3.5 h-3.5" /> No change
               </span>
             )}
@@ -151,24 +151,24 @@ export const RunComparisonView: React.FC<RunComparisonViewProps> = ({
         <div
           className={`border rounded-xl p-4 flex flex-col justify-between ${
             deltaArea < -100
-              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
               : deltaArea > 100
-              ? 'bg-rose-950/40 border-rose-500/40 text-rose-300'
-              : 'bg-slate-800/40 border-slate-700/60 text-slate-300'
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : 'bg-slate-50 border-slate-200 text-slate-800'
           }`}
         >
           <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-semibold">
             <span>Change in Flooded Area</span>
             {deltaArea < -100 ? (
-              <span className="flex items-center gap-1 text-emerald-400">
+              <span className="flex items-center gap-1 text-emerald-700">
                 <ArrowDownRight className="w-3.5 h-3.5" /> Reduced
               </span>
             ) : deltaArea > 100 ? (
-              <span className="flex items-center gap-1 text-rose-400">
+              <span className="flex items-center gap-1 text-rose-700">
                 <ArrowUpRight className="w-3.5 h-3.5" /> Expanded
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-slate-400">
+              <span className="flex items-center gap-1 text-slate-500">
                 <Minus className="w-3.5 h-3.5" /> No change
               </span>
             )}
@@ -191,24 +191,24 @@ export const RunComparisonView: React.FC<RunComparisonViewProps> = ({
         <div
           className={`border rounded-xl p-4 flex flex-col justify-between ${
             deltaVolume < -100
-              ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
               : deltaVolume > 100
-              ? 'bg-rose-950/40 border-rose-500/40 text-rose-300'
-              : 'bg-slate-800/40 border-slate-700/60 text-slate-300'
+              ? 'bg-rose-50 border-rose-200 text-rose-900'
+              : 'bg-slate-50 border-slate-200 text-slate-800'
           }`}
         >
           <div className="flex items-center justify-between text-[11px] uppercase tracking-wider font-semibold">
             <span>Change in Total Volume</span>
             {deltaVolume < -100 ? (
-              <span className="flex items-center gap-1 text-emerald-400">
+              <span className="flex items-center gap-1 text-emerald-700">
                 <ArrowDownRight className="w-3.5 h-3.5" /> Drained
               </span>
             ) : deltaVolume > 100 ? (
-              <span className="flex items-center gap-1 text-rose-400">
+              <span className="flex items-center gap-1 text-rose-700">
                 <ArrowUpRight className="w-3.5 h-3.5" /> Accumulated
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-slate-400">
+              <span className="flex items-center gap-1 text-slate-500">
                 <Minus className="w-3.5 h-3.5" /> No change
               </span>
             )}
