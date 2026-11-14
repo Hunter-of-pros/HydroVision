@@ -1,5 +1,5 @@
 import React from 'react';
-import { Waves, Activity, ShieldCheck, Cpu, Map, BarChart3 } from 'lucide-react';
+import { Waves, Activity, ShieldCheck, Cpu, Map, BarChart3, History } from 'lucide-react';
 import { HealthStatus } from '../types';
 
 interface HeaderProps {
@@ -8,6 +8,8 @@ interface HeaderProps {
   modelName?: string;
   activeTab: 'simulation' | 'evaluation';
   onSelectTab: (tab: 'simulation' | 'evaluation') => void;
+  onOpenHistory?: () => void;
+  savedRunsCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -16,6 +18,8 @@ export const Header: React.FC<HeaderProps> = ({
   modelName,
   activeTab,
   onSelectTab,
+  onOpenHistory,
+  savedRunsCount = 0,
 }) => {
   return (
     <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur px-6 py-3.5 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
@@ -60,6 +64,22 @@ export const Header: React.FC<HeaderProps> = ({
           <BarChart3 className="w-3.5 h-3.5" />
           <span>Evaluation Tab</span>
         </button>
+
+        {onOpenHistory && (
+          <button
+            onClick={onOpenHistory}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition border-l border-slate-800 ml-1 pl-2.5"
+            title="Open Run History & What-If Comparison"
+          >
+            <History className="w-3.5 h-3.5 text-cyan-400" />
+            <span>History</span>
+            {savedRunsCount > 0 && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-bold">
+                {savedRunsCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

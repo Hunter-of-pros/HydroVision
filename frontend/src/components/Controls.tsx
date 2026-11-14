@@ -1,5 +1,16 @@
 import React from 'react';
-import { CloudRain, Clock, Sliders, Shield, Zap, Sparkles, Loader2, PlaySquare } from 'lucide-react';
+import {
+  CloudRain,
+  Clock,
+  Sliders,
+  Shield,
+  Zap,
+  Sparkles,
+  Loader2,
+  PlaySquare,
+  BookmarkPlus,
+  History,
+} from 'lucide-react';
 import { ForecastParams, PresetItem } from '../types';
 
 interface ControlsProps {
@@ -11,6 +22,10 @@ interface ControlsProps {
   onSelectPreset: (preset: PresetItem) => void;
   isForecasting: boolean;
   isComparing: boolean;
+  onSaveRun: () => void;
+  canSaveRun: boolean;
+  savedRunsCount: number;
+  onOpenDrawer: () => void;
 }
 
 export const Controls: React.FC<ControlsProps> = ({
@@ -22,6 +37,10 @@ export const Controls: React.FC<ControlsProps> = ({
   onSelectPreset,
   isForecasting,
   isComparing,
+  onSaveRun,
+  canSaveRun,
+  savedRunsCount,
+  onOpenDrawer,
 }) => {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col gap-5">
@@ -195,6 +214,36 @@ export const Controls: React.FC<ControlsProps> = ({
               <PlaySquare className="w-4 h-4 text-indigo-400" />
               <span>Verify Against Solver</span>
             </>
+          )}
+        </button>
+      </div>
+
+      {/* Run History and Scenario Save */}
+      <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+        <button
+          onClick={onSaveRun}
+          disabled={!canSaveRun || savedRunsCount >= 3}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 text-xs font-semibold disabled:opacity-40 transition"
+          title="Save current simulation parameters and results (up to 3 runs)"
+        >
+          <BookmarkPlus className="w-4 h-4 text-brand-400" />
+          <span>Save Current Run</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700/60 text-slate-400">
+            {savedRunsCount} / 3
+          </span>
+        </button>
+
+        <button
+          onClick={onOpenDrawer}
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 text-xs font-semibold hover:border-cyan-500/50 transition"
+          title="Open saved runs history and side-by-side scenario comparison"
+        >
+          <History className="w-4 h-4 text-cyan-400" />
+          <span>Compare Scenarios</span>
+          {savedRunsCount > 0 && (
+            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+              {savedRunsCount}
+            </span>
           )}
         </button>
       </div>

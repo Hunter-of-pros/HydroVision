@@ -145,7 +145,24 @@ export interface SpeedupScalingItem {
   surrogate_ms: number;
 }
 
+export interface SavedRunSummary {
+  peak_depth_m: number;
+  flooded_area_m2: number;
+  total_volume_m3: number;
+}
+
+export interface SavedRun {
+  id: string;
+  name: string;
+  letter: string;
+  timestamp: number;
+  params: ForecastParams;
+  summary: SavedRunSummary;
+  frames: number[][][] | null;
+}
+
 export interface EvalSummaryData {
+
   generated_at: string;
   hardware: string;
   is_mock: boolean;
