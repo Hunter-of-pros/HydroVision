@@ -5,6 +5,7 @@ import {
   ForecastParams,
   ForecastResult,
   HealthStatus,
+  LiveWeatherData,
   PresetItem,
   TerrainData,
 } from './types';
@@ -201,5 +202,93 @@ export async function runCompare(
 export async function fetchResults(): Promise<EvalSummaryData> {
   return fetchJson<EvalSummaryData>('/results');
 }
+
+const WMO_MAP: Record<number, [string, string]> = {
+  0: ['Clear sky', '☀️'],
+  1: ['Mainly clear', '🌤️'],
+  2: ['Partly cloudy', '⛅'],
+  3: ['Overcast', '☁️'],
+  45: ['Foggy', '🌫️'],
+  48: ['Rime fog', '🌫️'],
+  51: ['Light drizzle', '🌦️'],
+  53: ['Moderate drizzle', '🌦️'],
+  55: ['Dense drizzle', '🌧️'],
+  61: ['Slight rain', '🌧️'],
+  63: ['Moderate rain', '🌧️'],
+  65: ['Heavy rain', '🌧️'],
+  80: ['Rain showers', '🌦️'],
+  81: ['Heavy showers', '🌧️'],
+  82: ['Violent showers', '⛈️'],
+  95: ['Thunderstorm', '⛈️'],
+};
+
+export async function fetchLiveWeather(): Promise<LiveWeatherData> {
+  // 1. Try HydroVision backend /weather/live endpoint
+  try {
+    return await fetchJson<LiveWeatherData>('/weather/live');
+  } catch (backendErr) {
+    console.warn('Backend /weather/live unreachable, querying Open-Meteo directly...', backendErr);
+  }
+
+  // 2. Direct browser fallback to Open-Meteo public API
+  try {
+    const lat = 12.935;
+    const lon = 77.69;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,showers,weather_code,wind_speed_10m&timezone=Asia%2FKolkata`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      const current = data.current || {};
+      const wCode = Number(current.weather_code ?? 3);
+      const [desc, icon] = WMO_MAP[wCode] || ['Overcast', '☁️'];
+      const precip = Number(current.precipitation ?? 0);
+      const interval = Number(current.interval ?? 900);
+      const rate = interval > 0 ? Number(((precip * 3600) / interval).toFixed(1)) : precip;
+
+      return {
+        location: 'Marathahalli - Bellandur, Bengaluru',
+        latitude: lat,
+        longitude: lon,
+        temperature_c: Number(current.temperature_2m ?? 21.0),
+        apparent_temp_c: Number(current.apparent_temperature ?? 21.5),
+        humidity_pct: Number(current.relative_humidity_2m ?? 80),
+        precipitation_mm: precip,
+        rainfall_mmhr: rate,
+        weather_code: wCode,
+        weather_description: desc,
+        weather_icon: icon,
+        is_raining: rate > 0.1,
+        wind_speed_kmh: Number(current.wind_speed_10m ?? 7),
+        recorded_at: String(current.time ?? new Date().toLocaleTimeString()),
+        source: 'Open-Meteo Direct (Browser)',
+        cached: false,
+      };
+    }
+  } catch (directErr) {
+    console.warn('Direct Open-Meteo fetch failed:', directErr);
+  }
+
+  // 3. Offline static fallback
+  return {
+    location: 'Marathahalli - Bellandur, Bengaluru',
+    latitude: 12.935,
+    longitude: 77.69,
+    temperature_c: 21.5,
+    apparent_temp_c: 22.0,
+    humidity_pct: 82,
+    precipitation_mm: 0.0,
+    rainfall_mmhr: 0.0,
+    weather_code: 3,
+    weather_description: 'Overcast',
+    weather_icon: '☁️',
+    is_raining: false,
+    wind_speed_kmh: 7.5,
+    recorded_at: 'Offline Mode',
+    source: 'Bengaluru Baseline (Offline)',
+    cached: false,
+    is_offline: true,
+  };
+}
+
 
 

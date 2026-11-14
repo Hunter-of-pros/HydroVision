@@ -15,6 +15,7 @@ import {
   fetchConfig,
   fetchTerrain,
   fetchPresets,
+  fetchLiveWeather,
   runForecast,
   runCompare,
 } from './api';
@@ -24,6 +25,7 @@ import {
   ForecastParams,
   ForecastResult,
   HealthStatus,
+  LiveWeatherData,
   PresetItem,
   SavedRun,
   TerrainData,
@@ -46,6 +48,8 @@ export const App: React.FC = () => {
   const [terrain, setTerrain] = useState<TerrainData | null>(null);
   const [config, setConfig] = useState<ConfigData | null>(null);
   const [presets, setPresets] = useState<PresetItem[]>([]);
+  const [liveWeather, setLiveWeather] = useState<LiveWeatherData | null>(null);
+  const [isWeatherLoading, setIsWeatherLoading] = useState<boolean>(false);
 
   const [params, setParams] = useState<ForecastParams>(DEFAULT_PARAMS);
   const [forecastResult, setForecastResult] = useState<ForecastResult | null>(null);
@@ -148,22 +152,37 @@ export const App: React.FC = () => {
     }
   }, []);
 
+  // Function to fetch real-time weather for Marathahalli - Bellandur
+  const loadLiveWeather = useCallback(async () => {
+    setIsWeatherLoading(true);
+    try {
+      const w = await fetchLiveWeather();
+      setLiveWeather(w);
+    } catch (err) {
+      console.warn('Failed to load live weather:', err);
+    } finally {
+      setIsWeatherLoading(false);
+    }
+  }, []);
+
   // Initialize application and load static metadata
   useEffect(() => {
     const initialize = async () => {
       try {
         setErrorMessage(null);
-        const [h, t, p, cfg] = await Promise.all([
+        const [h, t, p, cfg, w] = await Promise.all([
           fetchHealth(),
           fetchTerrain(),
           fetchPresets(),
           fetchConfig().catch(() => null),
+          fetchLiveWeather().catch(() => null),
         ]);
         setHealth(h);
         setIsMock(Boolean(h?.is_mock));
         setTerrain(t);
         setPresets(p);
         if (cfg) setConfig(cfg);
+        if (w) setLiveWeather(w);
 
         // Run initial default forecast so map is populated immediately
         const startTime = performance.now();
@@ -194,17 +213,25 @@ export const App: React.FC = () => {
     initialize();
   }, []);
 
-  // Poll /health every 30 seconds to track engine status
+  // Poll /health and live weather periodically
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const h = await fetchHealth();
-        setHealth(h);
-        setIsMock(Boolean(h?.is_mock));
+        const [h, w] = await Promise.all([
+          fetchHealth().catch(() => null),
+          fetchLiveWeather().catch(() => null),
+        ]);
+        if (h) {
+          setHealth(h);
+          setIsMock(Boolean(h?.is_mock));
+        }
+        if (w) {
+          setLiveWeather(w);
+        }
       } catch (err) {
-        console.warn('Failed to poll /health endpoint:', err);
+        console.warn('Failed to poll status or weather:', err);
       }
-    }, 30000);
+    }, 45000);
 
     return () => clearInterval(interval);
   }, []);
@@ -493,6 +520,9 @@ export const App: React.FC = () => {
                     canSaveRun={Boolean(forecastResult && forecastResult.depth_frames?.length > 0)}
                     savedRunsCount={savedRuns.length}
                     onOpenDrawer={() => setIsDrawerOpen(true)}
+                    liveWeather={liveWeather}
+                    isWeatherLoading={isWeatherLoading}
+                    onRefreshWeather={loadLiveWeather}
                   />
                 </div>
 
