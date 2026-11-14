@@ -1,5 +1,14 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Loader2 } from 'lucide-react';
+import {
+  Loader2,
+  Camera,
+  ExternalLink,
+  Navigation,
+  AlertTriangle,
+  X,
+  Waves,
+  Info,
+} from 'lucide-react';
 import { TerrainData } from '../types';
 
 interface MapViewerProps {
@@ -41,6 +50,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   const [animTick, setAnimTick] = useState<number>(0);
   const [basemapMode, setBasemapMode] = useState<'streets' | 'satellite'>('streets');
   const [imagesLoaded, setImagesLoaded] = useState<boolean>(false);
+  const [isStreetViewOpen, setIsStreetViewOpen] = useState<boolean>(false);
 
   const streetsImgRef = useRef<HTMLImageElement | null>(null);
   const satImgRef = useRef<HTMLImageElement | null>(null);
@@ -462,6 +472,19 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     return { lat, lon };
   };
 
+  // Active cell for Street View (either selected probe cell or default hotspot)
+  const activeStreetCell = useMemo(() => {
+    const r = selectedProbeCell?.row ?? 38;
+    const c = selectedProbeCell?.col ?? 26;
+    const { lat, lon } = getCellLatLon(r, c);
+    const depth = effectiveDepthFrame?.[r]?.[c] ?? depthFrame?.[r]?.[c] ?? 0;
+    const elevation = terrain?.elevation[r]?.[c] ?? 878.4;
+    return { row: r, col: c, lat, lon, depth, elevation };
+  }, [selectedProbeCell, effectiveDepthFrame, depthFrame, terrain, rows, cols]);
+
+  const googleStreetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${activeStreetCell.lat.toFixed(6)},${activeStreetCell.lon.toFixed(6)}`;
+  const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${activeStreetCell.lat.toFixed(6)},${activeStreetCell.lon.toFixed(6)}`;
+
   // Handle mouse move to extract cell diagnostics
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -554,6 +577,16 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             </button>
           </div>
 
+          {/* Ground Level / Street View Simulator Button */}
+          <button
+            onClick={() => setIsStreetViewOpen(true)}
+            className="px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 hover:bg-sky-100 text-sky-700 text-xs font-semibold flex items-center gap-1.5 transition shadow-2xs"
+            title="Open Street-Level Cross-Section Simulator"
+          >
+            <Camera className="w-3.5 h-3.5 text-sky-600" />
+            <span>Ground Level</span>
+          </button>
+
           {/* Flow Vectors */}
           <button
             onClick={() => setShowFlowVectors(!showFlowVectors)}
@@ -624,15 +657,24 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
         {/* Selected Probe Badge or Click Prompt */}
         {selectedProbeCell ? (
-          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs flex items-center gap-1.5 z-10">
+          <div
+            onClick={() => setIsStreetViewOpen(true)}
+            className="absolute top-3 left-3 bg-white/95 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs flex items-center gap-1.5 z-10 cursor-pointer hover:bg-sky-50 hover:border-sky-300 transition"
+            title="Click to open Street-Level Cross-Section Simulator"
+          >
             <span>
               Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}] &middot;{' '}
               {getCellLatLon(selectedProbeCell.row, selectedProbeCell.col).lat.toFixed(3)}&deg;N
             </span>
+            <Camera className="w-3 h-3 text-sky-600 ml-1" />
           </div>
         ) : (
-          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs pointer-events-none z-10">
-            Click street to inspect water depth
+          <div
+            onClick={() => setIsStreetViewOpen(true)}
+            className="absolute top-3 left-3 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs cursor-pointer hover:bg-slate-50 transition z-10"
+            title="Click to open Ground-Level Cross-Section Simulator"
+          >
+            Click street to inspect &middot; <span className="text-sky-600 font-medium">Ground Level &rarr;</span>
           </div>
         )}
 
@@ -690,6 +732,296 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           <span>2.0m+ Deep deluge</span>
         </div>
       </div>
+
+      {/* Street-Level Cross-Section Simulator & Google Street View Modal */}
+      {isStreetViewOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-sky-50 text-sky-600 border border-sky-100">
+                  <Camera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    Street-Level Cross-Section Simulator
+                  </h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    Marathahalli–Bellandur ORR • Cell [{activeStreetCell.row}, {activeStreetCell.col}] • {activeStreetCell.lat.toFixed(4)}°N, {activeStreetCell.lon.toFixed(4)}°E
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsStreetViewOpen(false)}
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
+                title="Close Simulator"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* GPS Location & Live Depth Diagnostics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-semibold">Latitude</span>
+                <p className="text-sm font-bold text-slate-900 font-mono">{activeStreetCell.lat.toFixed(5)}° N</p>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-semibold">Longitude</span>
+                <p className="text-sm font-bold text-slate-900 font-mono">{activeStreetCell.lon.toFixed(5)}° E</p>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-semibold">Ground Elevation</span>
+                <p className="text-sm font-bold text-sky-700 font-mono">
+                  {activeStreetCell.elevation.toFixed(1)} m DEM
+                </p>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-mono font-semibold">Simulated Flood Depth</span>
+                <p className="text-sm font-bold text-sky-600 font-mono">
+                  {(activeStreetCell.depth * 100).toFixed(1)} cm ({activeStreetCell.depth.toFixed(3)} m)
+                </p>
+              </div>
+            </div>
+
+            {/* Dynamic Street Cross-Section Cutaway Simulation */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-4 flex flex-col gap-3 relative overflow-hidden text-white">
+              <div className="flex items-center justify-between text-xs font-semibold border-b border-slate-800 pb-2">
+                <span className="flex items-center gap-1.5 text-sky-400">
+                  <Waves className="w-4 h-4" />
+                  Dynamic Hydraulic Cutaway (Water Level vs. Vehicles &amp; Pedestrians)
+                </span>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                    activeStreetCell.depth >= 1.0
+                      ? 'bg-rose-950 text-rose-300 border border-rose-500/50'
+                      : activeStreetCell.depth >= 0.6
+                      ? 'bg-red-950 text-red-300 border border-red-500/50'
+                      : activeStreetCell.depth >= 0.3
+                      ? 'bg-orange-950 text-orange-300 border border-orange-500/50'
+                      : activeStreetCell.depth >= 0.15
+                      ? 'bg-amber-950 text-amber-300 border border-amber-500/50'
+                      : activeStreetCell.depth >= 0.05
+                      ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/50'
+                      : 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                  }`}
+                >
+                  {activeStreetCell.depth >= 1.0
+                    ? 'ROOF SUBMERGED (100cm+)'
+                    : activeStreetCell.depth >= 0.6
+                    ? 'INTAKE FLOODED (60cm+)'
+                    : activeStreetCell.depth >= 0.3
+                    ? 'EXHAUST SUBMERGED (30cm+)'
+                    : activeStreetCell.depth >= 0.15
+                    ? 'SIDEWALK BREACHED (15cm+)'
+                    : activeStreetCell.depth >= 0.05
+                    ? 'SHALLOW SHEET FLOW'
+                    : 'DRY PAVEMENT'}
+                </span>
+              </div>
+
+              {/* SVG Urban Street Cross-Section */}
+              <div className="relative h-48 w-full bg-gradient-to-b from-sky-950/60 to-slate-950 rounded-lg overflow-hidden border border-slate-800/80">
+                {/* Background Urban Skylines */}
+                <svg className="absolute inset-0 w-full h-full opacity-15" preserveAspectRatio="none">
+                  <rect x="5%" y="45%" width="12%" height="55%" fill="#38bdf8" />
+                  <rect x="20%" y="30%" width="15%" height="70%" fill="#38bdf8" />
+                  <rect x="40%" y="50%" width="10%" height="50%" fill="#38bdf8" />
+                  <rect x="55%" y="35%" width="16%" height="65%" fill="#38bdf8" />
+                  <rect x="75%" y="40%" width="14%" height="60%" fill="#38bdf8" />
+                </svg>
+
+                {/* Sidewalk & Concrete Curb (Left side, exactly 15cm scale curb) */}
+                <div className="absolute bottom-0 left-0 w-32 h-14 bg-slate-700 border-t-2 border-r-2 border-slate-500 z-10 flex flex-col items-center justify-center shadow-lg">
+                  <span className="text-[10px] text-slate-200 font-mono font-bold">Sidewalk</span>
+                  <span className="text-[9px] text-cyan-300 font-mono">15cm Curb</span>
+                </div>
+
+                {/* Asphalt Road Surface */}
+                <div className="absolute bottom-0 left-32 right-0 h-8 bg-slate-950 border-t-2 border-slate-600 flex items-center justify-around z-10">
+                  <div className="w-10 h-1 bg-amber-400 rounded-full" />
+                  <div className="w-10 h-1 bg-amber-400 rounded-full" />
+                  <div className="w-10 h-1 bg-amber-400 rounded-full" />
+                  <div className="w-10 h-1 bg-amber-400 rounded-full" />
+                </div>
+
+                {/* Vehicle Silhouette (sitting on asphalt road) */}
+                <div className="absolute bottom-8 left-52 z-15 w-44 h-24 pointer-events-none">
+                  <svg viewBox="0 0 160 80" className="w-full h-full drop-shadow-lg">
+                    {/* Car Chassis */}
+                    <path
+                      d="M 15 52 L 25 36 L 56 26 L 105 26 L 126 36 L 148 44 L 152 60 L 138 60 A 12 12 0 0 1 114 60 L 52 60 A 12 12 0 0 1 28 60 L 10 60 Z"
+                      fill="#0284c7"
+                    />
+                    {/* Windows */}
+                    <path d="M 58 29 L 80 29 L 80 46 L 39 46 Z" fill="#bae6fd" opacity="0.85" />
+                    <path d="M 85 29 L 104 29 L 121 46 L 85 46 Z" fill="#bae6fd" opacity="0.85" />
+                    {/* Wheels */}
+                    <circle cx="40" cy="60" r="12" fill="#0f172a" stroke="#64748b" strokeWidth="2.5" />
+                    <circle cx="126" cy="60" r="12" fill="#0f172a" stroke="#64748b" strokeWidth="2.5" />
+                    <circle cx="40" cy="60" r="4.5" fill="#94a3b8" />
+                    <circle cx="126" cy="60" r="4.5" fill="#94a3b8" />
+                  </svg>
+                </div>
+
+                {/* Dynamic Water Layer */}
+                {activeStreetCell.depth > 0 && (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-700/85 via-sky-500/75 to-cyan-300/60 z-20 transition-all duration-300 border-t-2 border-cyan-200"
+                    style={{
+                      height: `${Math.min(
+                        175,
+                        Math.max(8, (activeStreetCell.depth / 1.0) * 110 + 32)
+                      )}px`,
+                    }}
+                  >
+                    {/* Surface ripple */}
+                    <div className="w-full h-1 bg-white/40 animate-pulse" />
+                    <div className="px-3 pt-1 flex justify-between items-center text-[11px] font-mono font-bold text-white drop-shadow">
+                      <span>Simulated Water: {(activeStreetCell.depth * 100).toFixed(1)} cm</span>
+                      <span>h = {activeStreetCell.depth.toFixed(3)} m</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Water Height Reference Markers on Right Edge */}
+                <div className="absolute right-3 bottom-8 top-3 flex flex-col justify-between text-[10px] font-mono text-slate-400 border-l border-dashed border-slate-600 pl-2 z-30 pointer-events-none">
+                  <span className="text-rose-400 font-bold">100cm (Roof)</span>
+                  <span className="text-orange-400 font-bold">60cm (Intake)</span>
+                  <span className="text-amber-400 font-bold">30cm (Exhaust)</span>
+                  <span className="text-sky-400 font-bold">15cm (Sidewalk)</span>
+                  <span className="text-slate-500 font-bold">0cm (Road)</span>
+                </div>
+              </div>
+
+              {/* Dynamic Physical Guidance Message */}
+              <div className="text-xs text-slate-300 flex items-start gap-2.5 bg-slate-950/80 p-3 rounded-lg border border-slate-800">
+                <AlertTriangle
+                  className={`w-4 h-4 shrink-0 mt-0.5 ${
+                    activeStreetCell.depth >= 0.3
+                      ? 'text-rose-400'
+                      : activeStreetCell.depth >= 0.15
+                      ? 'text-amber-400'
+                      : 'text-sky-400'
+                  }`}
+                />
+                <div>
+                  <span className="font-bold text-white">
+                    {activeStreetCell.depth >= 0.6
+                      ? 'Engine Air Intake Submerged (Catastrophic Failure): '
+                      : activeStreetCell.depth >= 0.3
+                      ? 'Vehicle Exhaust Submerged (Engine Stalling): '
+                      : activeStreetCell.depth >= 0.15
+                      ? 'Sidewalk Curb Breached (Pedestrian & Travel Hazard): '
+                      : 'Street Traversible: '}
+                  </span>
+                  {activeStreetCell.depth >= 1.0
+                    ? 'Water level exceeds 100 cm (roof level). Vehicles completely submerged. Severe life-safety emergency; evacuation directive active.'
+                    : activeStreetCell.depth >= 0.6
+                    ? 'Water level exceeds 60 cm (air intake height). Water enters engine air intake causing immediate hydraulic lock (catastrophic engine failure). Street impassable to all standard vehicles.'
+                    : activeStreetCell.depth >= 0.3
+                    ? 'Water level exceeds 30 cm (average vehicle exhaust height). Backpressure enters exhaust tailpipes causing engines to flood and stall.'
+                    : activeStreetCell.depth >= 0.15
+                    ? 'Water exceeds 15 cm (raised concrete sidewalk curb). Walking on sidewalks becomes hazardous; high hydroplaning risk for two-wheelers and sedans.'
+                    : 'Water depth is beneath the 15 cm sidewalk curb. Street traffic can proceed with reduced speed.'}
+                </div>
+              </div>
+            </div>
+
+            {/* Term Reference & Engineering Purpose Table */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <Info className="w-4 h-4 text-sky-600" />
+                <span>Street-Level Thresholds &amp; Technical Purpose</span>
+              </div>
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold font-mono text-[11px]">
+                    <tr>
+                      <th className="py-2 px-3">Threshold</th>
+                      <th className="py-2 px-3">Physical Height</th>
+                      <th className="py-2 px-3">What It Means &amp; Engineering Purpose</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    <tr className={activeStreetCell.depth >= 0.15 && activeStreetCell.depth < 0.3 ? 'bg-amber-50/70 font-medium' : ''}>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0" />
+                        Sidewalk
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-sky-700">15 cm</td>
+                      <td className="py-2.5 px-3 text-slate-600">
+                        The raised concrete pedestrian curb (15 cm). Once water rises past this line, walking on sidewalks becomes hazardous.
+                      </td>
+                    </tr>
+                    <tr className={activeStreetCell.depth >= 0.3 && activeStreetCell.depth < 0.6 ? 'bg-orange-50/70 font-medium' : ''}>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+                        Exhaust
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-amber-700">30 cm</td>
+                      <td className="py-2.5 px-3 text-slate-600">
+                        Average vehicle exhaust height. If water reaches this height, backpressure can flood the exhaust and stall the engine.
+                      </td>
+                    </tr>
+                    <tr className={activeStreetCell.depth >= 0.6 && activeStreetCell.depth < 1.0 ? 'bg-red-50/70 font-medium' : ''}>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-orange-500 shrink-0" />
+                        Intake
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-orange-700">60 cm</td>
+                      <td className="py-2.5 px-3 text-slate-600">
+                        Engine air intake height. If water enters the air intake, the engine suffers hydraulic lock (catastrophic failure).
+                      </td>
+                    </tr>
+                    <tr className={activeStreetCell.depth >= 1.0 ? 'bg-rose-50/70 font-medium' : ''}>
+                      <td className="py-2.5 px-3 font-semibold text-slate-900 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                        Roof
+                      </td>
+                      <td className="py-2.5 px-3 font-mono font-bold text-rose-700">100 cm+</td>
+                      <td className="py-2.5 px-3 text-slate-600">
+                        Severe deluge level where vehicles are partially or completely submerged.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Action Buttons: Google Street View (360° Panorama) & Google Maps */}
+            <div className="flex flex-col gap-2 pt-1 border-t border-slate-200">
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <a
+                  href={googleStreetViewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-700 hover:to-blue-700 text-white font-semibold text-xs shadow-md transition"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span>Google Street View (360° Panorama)</span>
+                  <ExternalLink className="w-3.5 h-3.5 ml-1" />
+                </a>
+
+                <a
+                  href={googleMapsSearchUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs border border-slate-200 transition"
+                >
+                  <Navigation className="w-4 h-4 text-emerald-600" />
+                  <span>View in Google Maps</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+              <p className="text-[11px] text-slate-500 text-center">
+                Directly launches the live 360-degree Google Street View at this precise latitude and longitude so officials can visually cross-check trees, gutters, and low-lying walls.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
