@@ -175,8 +175,27 @@ def forecast(params: Dict[str, Any]) -> Dict[str, Any]:
     return result
 
 
+_COMPARE_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def _get_compare_cache_key(params: Dict[str, Any]) -> str:
+    """Generate canonical cache key for comparison simulation parameters."""
+    intensity = float(params.get("rain_intensity_mmhr", 80.0))
+    duration = float(params.get("rain_duration_min", 45.0))
+    shape = str(params.get("rain_shape", "constant"))
+    drain = float(params.get("drain_capacity_mmhr", 0.0))
+    horizon_steps = int(params.get("horizon_steps", 120))
+    stride = int(params.get("frame_stride", 1))
+    mode = get_hydro_mode()
+    return f"{mode}_{intensity:.2f}_{duration:.2f}_{shape}_{drain:.2f}_{horizon_steps}_{stride}"
+
+
 def compare(params: Dict[str, Any]) -> Dict[str, Any]:
     """Execute both surrogate and numerical solver, computing comparative metrics."""
+    cache_key = _get_compare_cache_key(params)
+    if cache_key in _COMPARE_CACHE:
+        return _COMPARE_CACHE[cache_key]
+
     ml = get_ml_module()
     stride = int(params.get("frame_stride", 1))
     surr_res = ml.forecast(params)
@@ -228,12 +247,17 @@ def compare(params: Dict[str, Any]) -> Dict[str, Any]:
     if "peak_depth_m" in solv_res and isinstance(solv_res["peak_depth_m"], (int, float)):
         solv_res["peak_depth_m"] = round(float(solv_res["peak_depth_m"]), 3)
 
-    return {
+    result = {
         "surrogate": surr_res,
         "solver": solv_res,
         "metrics": metrics,
         "model_name": surr_res.get("model_name", "mock-v0"),
     }
+    _COMPARE_CACHE[cache_key] = result
+    if len(_COMPARE_CACHE) > 64:
+        _COMPARE_CACHE.pop(next(iter(_COMPARE_CACHE)))
+
+    return result
 
 
 def get_eval_results() -> Dict[str, Any]:

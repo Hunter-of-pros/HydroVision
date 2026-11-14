@@ -93,6 +93,9 @@ def get_terrain() -> Dict[str, Any]:
         }
 
 
+_MOCK_SIM_CACHE: Dict[str, Tuple[np.ndarray, List[float], Dict[str, Any], float]] = {}
+
+
 def _run_hydrodynamic_simulation(
     params: Dict[str, Any],
     custom_dem: Optional[np.ndarray] = None,
@@ -119,6 +122,13 @@ def _run_hydrodynamic_simulation(
     rain_shape = str(params.get("rain_shape", "constant"))
     drain_capacity = float(params.get("drain_capacity_mmhr", 0.0))
     horizon_steps = int(params.get("horizon_steps", HORIZON_STEPS))
+
+    cache_key = None
+    if custom_dem is None:
+        cache_key = f"{rain_intensity:.2f}_{rain_duration:.2f}_{rain_shape}_{drain_capacity:.2f}_{horizon_steps}"
+        if cache_key in _MOCK_SIM_CACHE:
+            c_frames, c_rain, c_budget, c_solve_time = _MOCK_SIM_CACHE[cache_key]
+            return c_frames.copy(), list(c_rain), dict(c_budget), c_solve_time
 
     rain_series = make_rain_series(
         duration_min=rain_duration,
@@ -226,6 +236,11 @@ def _run_hydrodynamic_simulation(
         "flooded_area_m2": flooded_area,
         "total_volume_m3": total_volume,
     }
+
+    if cache_key is not None:
+        _MOCK_SIM_CACHE[cache_key] = (corrected_frames.copy(), list(rain_series), dict(budget_dict), solve_time_s)
+        if len(_MOCK_SIM_CACHE) > 64:
+            _MOCK_SIM_CACHE.pop(next(iter(_MOCK_SIM_CACHE)))
 
     return corrected_frames, rain_series, budget_dict, solve_time_s
 

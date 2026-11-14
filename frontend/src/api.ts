@@ -20,8 +20,14 @@ const API_BASE =
     ? ''
     : 'http://localhost:8000';
 
-// In-memory cache for static presets
+// In-memory cache for static presets and simulations
 let presetsCache: PresetItem[] | null = null;
+const forecastCache = new Map<string, ForecastResult>();
+const compareCache = new Map<string, CompareResult>();
+
+export function getParamsCacheKey(params: ForecastParams): string {
+  return `${params.rain_intensity_mmhr}_${params.rain_duration_min}_${params.rain_shape}_${params.drain_capacity_mmhr}_${params.horizon_steps || 120}_${params.frame_stride || 1}`;
+}
 
 async function fetchJson<T>(
   endpoint: string,
@@ -150,14 +156,20 @@ export async function fetchPresets(forceRefresh = false): Promise<PresetItem[]> 
 
 export function clearPresetsCache(): void {
   presetsCache = null;
+  forecastCache.clear();
+  compareCache.clear();
 }
 
 export async function runForecast(
   params: ForecastParams,
   signal?: AbortSignal
 ): Promise<ForecastResult> {
+  const cacheKey = getParamsCacheKey(params);
+  if (forecastCache.has(cacheKey)) {
+    return forecastCache.get(cacheKey)!;
+  }
   try {
-    return await fetchJson<ForecastResult>(
+    const res = await fetchJson<ForecastResult>(
       '/forecast',
       {
         method: 'POST',
@@ -165,6 +177,8 @@ export async function runForecast(
       },
       signal
     );
+    forecastCache.set(cacheKey, res);
+    return res;
   } catch (err: any) {
     if (err.name === 'AbortError') {
       throw err;
@@ -183,8 +197,12 @@ export async function runCompare(
   params: ForecastParams,
   signal?: AbortSignal
 ): Promise<CompareResult> {
+  const cacheKey = getParamsCacheKey(params);
+  if (compareCache.has(cacheKey)) {
+    return compareCache.get(cacheKey)!;
+  }
   try {
-    return await fetchJson<CompareResult>(
+    const res = await fetchJson<CompareResult>(
       '/compare',
       {
         method: 'POST',
@@ -192,6 +210,8 @@ export async function runCompare(
       },
       signal
     );
+    compareCache.set(cacheKey, res);
+    return res;
   } catch (err: any) {
     if (err.name === 'AbortError') {
       throw err;
@@ -200,6 +220,7 @@ export async function runCompare(
       console.warn('Backend unavailable (network error or 5xx). Loading offline compare fixture.');
       const fallback = await fetchFallback<CompareResult>('/compare_fixture.json');
       fallback.is_offline_fallback = true;
+      compareCache.set(cacheKey, fallback);
       return fallback;
     }
     throw err;

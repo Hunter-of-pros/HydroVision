@@ -191,6 +191,9 @@ export const App: React.FC = () => {
         setForecastResult(initialForecast);
         isInitialMount.current = false;
 
+        // Pre-warm solver comparison in background so "Verify Against Solver" loads instantly
+        runCompare(DEFAULT_PARAMS).catch(() => {});
+
         // If a restored run matches default params, populate its frames
         setSavedRuns((prev) =>
           prev.map((run) => {
@@ -254,7 +257,11 @@ export const App: React.FC = () => {
   }, [params, executeForecast]);
 
   // Execute solver verification with AbortController and E2E latency timing
-  const handleRunCompare = useCallback(async () => {
+  const handleRunCompare = useCallback(async (paramsToRun?: ForecastParams) => {
+    const targetParams = paramsToRun || params;
+    if (paramsToRun) {
+      setParams(paramsToRun);
+    }
     if (compareAbortRef.current) {
       compareAbortRef.current.abort();
     }
@@ -266,7 +273,7 @@ export const App: React.FC = () => {
     const startTime = performance.now();
 
     try {
-      const res = await runCompare(params, controller.signal);
+      const res = await runCompare(targetParams, controller.signal);
       const elapsed = performance.now() - startTime;
       setE2eLatencyMs(elapsed);
       setCompareResult(res);
@@ -495,7 +502,10 @@ export const App: React.FC = () => {
               <ComparisonView
                 compareData={compareResult}
                 terrain={terrain}
-                currentFrame={currentFrame}
+                params={params}
+                presets={presets}
+                onRunCompare={handleRunCompare}
+                isComparing={isComparing}
                 onClose={() => setCompareResult(null)}
                 isMock={isMock}
               />
