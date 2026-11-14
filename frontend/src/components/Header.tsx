@@ -1,10 +1,11 @@
 import React from 'react';
-import { Waves, Activity, ShieldCheck, Cpu, Map, BarChart3, History } from 'lucide-react';
+import { Waves, Activity, ShieldCheck, Cpu, Map, BarChart3, History, Info, Clock } from 'lucide-react';
 import { HealthStatus } from '../types';
 
 interface HeaderProps {
   health: HealthStatus | null;
   inferenceTimeMs?: number;
+  e2eLatencyMs?: number;
   modelName?: string;
   activeTab: 'simulation' | 'evaluation';
   onSelectTab: (tab: 'simulation' | 'evaluation') => void;
@@ -15,6 +16,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   health,
   inferenceTimeMs,
+  e2eLatencyMs,
   modelName,
   activeTab,
   onSelectTab,
@@ -83,11 +85,41 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        {inferenceTimeMs !== undefined && (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs">
+        {/* Model Inference & End-to-End Latency Badge with Informational Tooltip */}
+        {(inferenceTimeMs !== undefined || e2eLatencyMs !== undefined) && (
+          <div className="relative group cursor-help flex items-center gap-2 px-3 py-1 rounded-lg bg-slate-800/80 border border-slate-700/60 text-xs">
             <Cpu className="w-3.5 h-3.5 text-brand-400" />
-            <span className="text-slate-400">Latency:</span>
-            <span className="font-semibold text-brand-300">{inferenceTimeMs.toFixed(1)} ms</span>
+            <div className="flex items-center gap-2 font-mono">
+              {inferenceTimeMs !== undefined && (
+                <span>
+                  <span className="text-slate-400 font-sans text-[11px]">Model: </span>
+                  <span className="font-semibold text-brand-300">{inferenceTimeMs.toFixed(1)}ms</span>
+                </span>
+              )}
+              {e2eLatencyMs !== undefined && (
+                <span className="border-l border-slate-700 pl-2">
+                  <span className="text-slate-400 font-sans text-[11px]">E2E: </span>
+                  <span className="font-semibold text-cyan-300">{e2eLatencyMs.toFixed(0)}ms</span>
+                </span>
+              )}
+            </div>
+            <Info className="w-3 h-3 text-slate-500 group-hover:text-slate-300 transition" />
+
+            {/* Informational Hover Tooltip */}
+            <div className="absolute top-full mt-2 right-0 w-72 p-3 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl text-[11px] leading-relaxed text-slate-300 hidden group-hover:block z-50 pointer-events-none">
+              <div className="font-bold text-white mb-1.5 flex items-center gap-1.5 border-b border-slate-800 pb-1">
+                <Clock className="w-3.5 h-3.5 text-brand-400" />
+                Latency Breakdown
+              </div>
+              <div className="space-y-1.5">
+                <p>
+                  <strong className="text-brand-300">Model Latency ({inferenceTimeMs?.toFixed(1) ?? '—'} ms):</strong> Pure neural surrogate forward-pass tensor inference time on the server.
+                </p>
+                <p>
+                  <strong className="text-cyan-300">End-to-End Latency ({e2eLatencyMs?.toFixed(0) ?? '—'} ms):</strong> Total round-trip time across HTTP transport, payload deserialization, and client-side UI rendering.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 

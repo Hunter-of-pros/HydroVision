@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 
 from backend import schemas, services
 
@@ -19,6 +21,29 @@ app = FastAPI(
     description="Physics-informed neural surrogate backend for real-time urban flood forecasting.",
     version="1.0.0",
 )
+
+# Exception handler for clear, readable Pydantic 422 validation errors
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """Format Pydantic schema validation failures into clean, descriptive error messages."""
+    messages = []
+    for err in exc.errors():
+        field = " -> ".join(str(part) for part in err.get("loc", []) if part != "body")
+        msg = err.get("msg", "Invalid value")
+        input_val = err.get("input", None)
+        if input_val is not None and not isinstance(input_val, dict):
+            messages.append(f"Field '{field}': {msg} (received {input_val})")
+        else:
+            messages.append(f"Field '{field}': {msg}")
+    error_summary = "; ".join(messages)
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "detail": error_summary,
+            "errors": exc.errors(),
+            "message": error_summary,
+        },
+    )
 
 # Enable GZip compression for high-dimensional depth frame payloads
 app.add_middleware(GZipMiddleware, minimum_size=1000)

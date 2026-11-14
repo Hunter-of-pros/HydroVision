@@ -13,6 +13,15 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 from fastapi import HTTPException
+import numpy as np
+
+
+def _round_depth_frames(frames: Any) -> Any:
+    """Round 3D depth frames to 3 decimal places (1 mm physical precision)."""
+    if not frames:
+        return frames
+    arr = np.asarray(frames, dtype=np.float64)
+    return np.round(arr, 3).tolist()
 
 # Environment mode: "mock" (default) or "real"
 def get_hydro_mode() -> str:
@@ -136,6 +145,12 @@ def forecast(params: Dict[str, Any]) -> Dict[str, Any]:
         result["frame_stride"] = stride
     else:
         result["frame_stride"] = 1
+
+    # Round depth values to 3 decimals server-side for payload optimization
+    result["depth_frames"] = _round_depth_frames(result["depth_frames"])
+    if "peak_depth_m" in result and isinstance(result["peak_depth_m"], (int, float)):
+        result["peak_depth_m"] = round(float(result["peak_depth_m"]), 3)
+
     return result
 
 
@@ -183,6 +198,14 @@ def compare(params: Dict[str, Any]) -> Dict[str, Any]:
     else:
         surr_res["frame_stride"] = 1
         solv_res["frame_stride"] = 1
+
+    # Round depth values to 3 decimals server-side for payload optimization
+    surr_res["depth_frames"] = _round_depth_frames(surr_res["depth_frames"])
+    solv_res["depth_frames"] = _round_depth_frames(solv_res["depth_frames"])
+    if "peak_depth_m" in surr_res and isinstance(surr_res["peak_depth_m"], (int, float)):
+        surr_res["peak_depth_m"] = round(float(surr_res["peak_depth_m"]), 3)
+    if "peak_depth_m" in solv_res and isinstance(solv_res["peak_depth_m"], (int, float)):
+        solv_res["peak_depth_m"] = round(float(solv_res["peak_depth_m"]), 3)
 
     return {
         "surrogate": surr_res,

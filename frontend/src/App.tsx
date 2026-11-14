@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Header } from './components/Header';
 import { Controls } from './components/Controls';
 import { Timeline } from './components/Timeline';
@@ -60,6 +60,12 @@ export const App: React.FC = () => {
   const [isForecasting, setIsForecasting] = useState<boolean>(false);
   const [isComparing, setIsComparing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [e2eLatencyMs, setE2eLatencyMs] = useState<number | null>(null);
+
+  // AbortController refs to cancel in-flight requests when newer ones start
+  const forecastAbortRef = useRef<AbortController | null>(null);
+  const compareAbortRef = useRef<AbortController | null>(null);
+  const isInitialMount = useRef<boolean>(true);
 
   // Scenario Run History state (stored in memory + lightweight localStorage)
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>(() => {
@@ -106,6 +112,39 @@ export const App: React.FC = () => {
     }
   }, [savedRuns]);
 
+  // Execute neural surrogate forecast with AbortController and E2E latency timing
+  const executeForecast = useCallback(async (paramsToRun: ForecastParams) => {
+    // Abort previous in-flight forecast if still active
+    if (forecastAbortRef.current) {
+      forecastAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    forecastAbortRef.current = controller;
+
+    setIsForecasting(true);
+    setErrorMessage(null);
+    const startTime = performance.now();
+
+    try {
+      const res = await runForecast(paramsToRun, controller.signal);
+      const elapsed = performance.now() - startTime;
+      setE2eLatencyMs(elapsed);
+      setForecastResult(res);
+      setCompareResult(null); // Exit comparison view if active
+      setCurrentFrame(0);
+      setErrorMessage(null);
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        // Silently ignore superseded in-flight requests
+        return;
+      }
+      console.error('Forecast error:', err);
+      setErrorMessage(err.message || 'Forecast simulation failed.');
+    } finally {
+      setIsForecasting(false);
+    }
+  }, []);
+
   // Initialize application and load static metadata
   useEffect(() => {
     const initialize = async () => {
@@ -122,8 +161,11 @@ export const App: React.FC = () => {
         setPresets(p);
 
         // Run initial default forecast so map is populated immediately
+        const startTime = performance.now();
         const initialForecast = await runForecast(DEFAULT_PARAMS);
+        setE2eLatencyMs(performance.now() - startTime);
         setForecastResult(initialForecast);
+        isInitialMount.current = false;
 
         // If a restored run matches default params, populate its frames
         setSavedRuns((prev) =>
@@ -140,6 +182,7 @@ export const App: React.FC = () => {
       } catch (err: any) {
         console.error('Initialization error:', err);
         setErrorMessage(err.message || 'Failed to connect to HydroVision backend server.');
+        isInitialMount.current = false;
       }
     };
 
@@ -161,33 +204,47 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Execute neural surrogate forecast
-  const handleRunForecast = useCallback(async () => {
-    setIsForecasting(true);
-    setErrorMessage(null);
-    try {
-      const res = await runForecast(params);
-      setForecastResult(res);
-      setCompareResult(null); // Exit comparison view if active
-      setCurrentFrame(0);
-    } catch (err: any) {
-      console.error('Forecast error:', err);
-      setErrorMessage(err.message || 'Forecast simulation failed.');
-    } finally {
-      setIsForecasting(false);
+  // Debounce slider parameter updates by ~300ms
+  useEffect(() => {
+    if (isInitialMount.current) {
+      return;
     }
-  }, [params]);
+    const timer = setTimeout(() => {
+      executeForecast(params);
+    }, 300);
 
-  // Execute solver verification
+    return () => clearTimeout(timer);
+  }, [params, executeForecast]);
+
+  // Execute neural surrogate forecast on button click
+  const handleRunForecast = useCallback(() => {
+    executeForecast(params);
+  }, [params, executeForecast]);
+
+  // Execute solver verification with AbortController and E2E latency timing
   const handleRunCompare = useCallback(async () => {
+    if (compareAbortRef.current) {
+      compareAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    compareAbortRef.current = controller;
+
     setIsComparing(true);
     setErrorMessage(null);
+    const startTime = performance.now();
+
     try {
-      const res = await runCompare(params);
+      const res = await runCompare(params, controller.signal);
+      const elapsed = performance.now() - startTime;
+      setE2eLatencyMs(elapsed);
       setCompareResult(res);
       setForecastResult(res.surrogate);
       setCurrentFrame(0);
+      setErrorMessage(null);
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        return;
+      }
       console.error('Comparison error:', err);
       setErrorMessage(err.message || 'Comparison verification failed.');
     } finally {
@@ -195,14 +252,15 @@ export const App: React.FC = () => {
     }
   }, [params]);
 
-  // Handle parameter changes
+  // Handle parameter changes (updates immediately for smooth UI slider thumb movement)
   const handleParamsChange = (updated: Partial<ForecastParams>) => {
     setParams((prev) => ({ ...prev, ...updated }));
   };
 
-  // Select a predefined storm preset
+  // Select a predefined storm preset (triggers simulation immediately)
   const handleSelectPreset = (preset: PresetItem) => {
     setParams({ ...preset.params });
+    executeForecast(preset.params);
   };
 
   // Save current forecast run (keep up to 3 runs in memory)
@@ -339,6 +397,7 @@ export const App: React.FC = () => {
       <Header
         health={health}
         inferenceTimeMs={forecastResult?.inference_time_ms}
+        e2eLatencyMs={e2eLatencyMs ?? undefined}
         modelName={forecastResult?.model_name}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
@@ -347,19 +406,36 @@ export const App: React.FC = () => {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
-        {/* Error Notification Banner */}
+        {/* Error Notification Banner with Retry and Reset options */}
         {errorMessage && (
-          <div className="bg-rose-950/80 border border-rose-500/40 rounded-xl p-4 flex items-center justify-between gap-3 text-rose-200 text-xs">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{errorMessage}</span>
+          <div className="bg-rose-950/90 border border-rose-500/50 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-rose-200 text-xs shadow-xl animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-bold text-rose-300">Simulation Request Error</span>
+                <span className="text-slate-300 mt-0.5">{errorMessage}</span>
+              </div>
             </div>
-            <button
-              onClick={() => handleRunForecast()}
-              className="flex items-center gap-1 font-semibold px-2.5 py-1 bg-rose-800/40 hover:bg-rose-800/80 rounded-lg transition"
-            >
-              <RefreshCw className="w-3 h-3" /> Retry
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setParams(DEFAULT_PARAMS);
+                  executeForecast(DEFAULT_PARAMS);
+                }}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition text-xs font-semibold"
+              >
+                Reset Defaults
+              </button>
+              <button
+                onClick={() => executeForecast(params)}
+                className="flex items-center gap-1.5 font-semibold px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition shadow-md shadow-rose-600/30 text-xs"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry Request</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -398,6 +474,7 @@ export const App: React.FC = () => {
                     selectedProbeCell={selectedProbeCell}
                     onSelectProbeCell={setSelectedProbeCell}
                     isMock={isMock}
+                    isLoading={isForecasting}
                   />
 
                   <PointProbe

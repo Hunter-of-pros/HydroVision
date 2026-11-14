@@ -10,19 +10,26 @@ export const HazardMetrics: React.FC<HazardMetricsProps> = ({
   depthFrame,
   cellAreaM2 = 1600,
 }) => {
-  const stats = useMemo(() => {
-    if (!depthFrame) {
-      return {
-        totalCells: 4096,
-        wetCells: 0,
-        impassableCells: 0, // >= 0.15m
-        emergencyCutoffCells: 0, // >= 0.30m
-        severeCells: 0, // >= 0.60m
-        totalVolumeM3: 0,
-        maxDepth: 0,
-      };
-    }
+  if (!depthFrame) {
+    return (
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="h-4 w-48 bg-slate-800 rounded" />
+          <div className="h-4 w-24 bg-slate-800 rounded" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5 h-16 flex flex-col justify-between">
+              <div className="h-2.5 w-20 bg-slate-800 rounded" />
+              <div className="h-4 w-16 bg-slate-700/80 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
+  const stats = useMemo(() => {
     let wet = 0;
     let impassable = 0;
     let emergency = 0;

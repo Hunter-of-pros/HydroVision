@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { Compass, Layers, Download, MapPin } from 'lucide-react';
+import { Compass, Layers, Download, MapPin, Loader2 } from 'lucide-react';
 import { TerrainData } from '../types';
 
 interface MapViewerProps {
@@ -10,6 +10,7 @@ interface MapViewerProps {
   selectedProbeCell?: { row: number; col: number } | null;
   onSelectProbeCell?: (cell: { row: number; col: number; elevation: number } | null) => void;
   isMock?: boolean;
+  isLoading?: boolean;
 }
 
 export const MapViewer: React.FC<MapViewerProps> = ({
@@ -20,6 +21,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   selectedProbeCell,
   onSelectProbeCell,
   isMock = false,
+  isLoading = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hoverCell, setHoverCell] = useState<{
@@ -275,15 +277,32 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
       {/* Canvas Map Container */}
       <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
-        <canvas
-          ref={canvasRef}
-          width={512}
-          height={512}
-          onClick={handleCanvasClick}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          className="w-full h-full object-contain cursor-crosshair"
-        />
+        {!terrain ? (
+          <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center gap-3 animate-pulse p-6 text-slate-500">
+            <div className="w-10 h-10 rounded-full border-2 border-brand-500/40 border-t-brand-400 animate-spin" />
+            <span className="text-xs font-mono">Loading DEM terrain raster...</span>
+          </div>
+        ) : (
+          <canvas
+            ref={canvasRef}
+            width={512}
+            height={512}
+            onClick={handleCanvasClick}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className="w-full h-full object-contain cursor-crosshair"
+          />
+        )}
+
+        {/* Loading Overlay when rolling out inference */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none z-20">
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-slate-900/90 border border-brand-500/40 text-brand-300 text-xs font-semibold shadow-2xl">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-400" />
+              <span>Simulating surrogate...</span>
+            </div>
+          </div>
+        )}
 
         {/* North Arrow Indicator */}
         <div className="absolute top-3 right-3 p-1.5 rounded-xl bg-slate-900/80 backdrop-blur border border-slate-700/60 shadow flex flex-col items-center pointer-events-none">
