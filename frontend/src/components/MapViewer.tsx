@@ -1,14 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import {
-  Compass,
-  Loader2,
-  Camera,
-  ExternalLink,
-  X,
-  Navigation,
-  AlertTriangle,
-  Waves,
-} from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { TerrainData } from '../types';
 
 interface MapViewerProps {
@@ -48,15 +39,11 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   const [showGrid, setShowGrid] = useState<boolean>(false);
   const [showFlowVectors, setShowFlowVectors] = useState<boolean>(true);
   const [animTick, setAnimTick] = useState<number>(0);
-  const [basemapMode, setBasemapMode] = useState<'streets' | 'satellite' | 'topo'>('streets');
-  const [viewAngle, setViewAngle] = useState<'2d' | '3d'>('2d');
-  const show3DBuildings = true;
-  const [isStreetViewOpen, setIsStreetViewOpen] = useState<boolean>(false);
+  const [basemapMode, setBasemapMode] = useState<'streets' | 'satellite'>('streets');
   const [imagesLoaded, setImagesLoaded] = useState<boolean>(false);
 
   const streetsImgRef = useRef<HTMLImageElement | null>(null);
   const satImgRef = useRef<HTMLImageElement | null>(null);
-  const topoImgRef = useRef<HTMLImageElement | null>(null);
 
   const rows = terrain?.shape[0] || 64;
   const cols = terrain?.shape[1] || 64;
@@ -72,7 +59,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     let loadedCount = 0;
     const checkLoaded = () => {
       loadedCount++;
-      if (loadedCount >= 3) {
+      if (loadedCount >= 2) {
         setImagesLoaded(true);
       }
     };
@@ -92,14 +79,6 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       checkLoaded();
     };
     sat.onerror = () => checkLoaded();
-
-    const topo = new Image();
-    topo.src = '/basemap_topo.png';
-    topo.onload = () => {
-      topoImgRef.current = topo;
-      checkLoaded();
-    };
-    topo.onerror = () => checkLoaded();
   }, []);
 
   // Precompute min/max terrain elevation
@@ -111,7 +90,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     };
   }, [terrain]);
 
-  // Compute terrain hillshade once when terrain loads for crisp 3D relief under water
+  // Compute terrain hillshade once when terrain loads for crisp relief under water
   useEffect(() => {
     if (!terrain) return;
     const tRows = terrain.shape[0];
@@ -128,26 +107,28 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     // NW illumination (315 deg azimuth, 45 deg altitude)
     const sunAz = (315 * Math.PI) / 180;
     const sunAlt = (45 * Math.PI) / 180;
-    const sinAlt = Math.sin(sunAlt);
-    const cosAlt = Math.cos(sunAlt);
 
     for (let r = 0; r < tRows; r++) {
       for (let c = 0; c < tCols; c++) {
-        const rPrev = Math.max(0, r - 1);
-        const rNext = Math.min(tRows - 1, r + 1);
-        const cPrev = Math.max(0, c - 1);
-        const cNext = Math.min(tCols - 1, c + 1);
+        const cLeft = Math.max(0, c - 1);
+        const cRight = Math.min(tCols - 1, c + 1);
+        const rUp = Math.max(0, r - 1);
+        const rDown = Math.min(tRows - 1, r + 1);
 
-        const dzdx = ((elev[r]?.[cNext] ?? 0) - (elev[r]?.[cPrev] ?? 0)) / (2 * dx);
-        const dzdy = ((elev[rNext]?.[c] ?? 0) - (elev[rPrev]?.[c] ?? 0)) / (2 * dx);
+        const dzdx = (elev[r][cRight] - elev[r][cLeft]) / ((cRight - cLeft) * dx);
+        const dzdy = (elev[rDown][c] - elev[rUp][c]) / ((rDown - rUp) * dx);
 
         const slope = Math.atan(Math.sqrt(dzdx * dzdx + dzdy * dzdy));
-        const aspect = Math.atan2(dzdy, -dzdx);
+        let aspect = Math.atan2(dzdy, -dzdx);
+        if (aspect < 0) aspect += 2 * Math.PI;
 
-        let shade = sinAlt * Math.cos(slope) + cosAlt * Math.sin(slope) * Math.cos(sunAz - aspect);
-        shade = Math.max(0, Math.min(1, shade));
-        const val = Math.round(shade * 255);
+        const hillshade = Math.max(
+          0,
+          Math.sin(sunAlt) * Math.cos(slope) +
+            Math.cos(sunAlt) * Math.sin(slope) * Math.cos(sunAz - aspect)
+        );
 
+        const val = Math.floor(hillshade * 255);
         const idx = (r * tCols + c) * 4;
         imgData.data[idx] = val;
         imgData.data[idx + 1] = val;
@@ -155,26 +136,27 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         imgData.data[idx + 3] = 255;
       }
     }
+
     hsCtx.putImageData(imgData, 0, 0);
     cachedHillshadeRef.current = hsCanvas;
   }, [terrain]);
 
-  // Subtle continuous animation loop for indicative flow vectors
+  // Subtle continuous water flow ripple animation
   useEffect(() => {
-    if (!showFlowVectors) return;
-    const timer = setInterval(() => {
-      setAnimTick((prev) => (prev + 1) % 100);
-    }, 60);
-    return () => clearInterval(timer);
-  }, [showFlowVectors]);
+    let animId: number;
+    const loop = () => {
+      setAnimTick((t) => (t + 1) % 360);
+      animId = requestAnimationFrame(loop);
+    };
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, []);
 
-  // Interpolated depth frame supporting continuous 60fps temporal blending
-  const effectiveDepthFrame = useMemo(() => {
+  // Frame Interpolation for sub-second smooth fluid rendering
+  const activeDepth = useMemo(() => {
     if (!depthFrame) return null;
-    if (!nextDepthFrame || frameProgress <= 0 || frameProgress >= 1) {
-      return depthFrame;
-    }
-    const p = Math.min(1.0, Math.max(0.0, frameProgress));
+    if (!nextDepthFrame || frameProgress <= 0.01) return depthFrame;
+    const p = Math.max(0, Math.min(1, frameProgress));
     const blended: number[][] = [];
     for (let r = 0; r < rows; r++) {
       const row: number[] = [];
@@ -187,38 +169,6 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     }
     return blended;
   }, [depthFrame, nextDepthFrame, frameProgress, rows, cols]);
-
-  // Urban 3D town building footprints matching the reference 3D isometric town view
-  const urbanBuildings = useMemo(() => {
-    const list: Array<{
-      r: number;
-      c: number;
-      w: number;
-      h: number;
-      height: number;
-      roofType: 'gable' | 'flat';
-    }> = [];
-    const seed = 73;
-    // Clustered town center settlements
-    for (let r = 6; r < 58; r += 4) {
-      for (let c = 6; c < 58; c += 4) {
-        // Skip main water channel corridor
-        if (Math.abs(r - (50 - c * 0.45)) < 3.5) continue;
-        const pseudo = ((r * 17 + c * 43 + seed) % 100) / 100;
-        if (pseudo > 0.3) {
-          list.push({
-            r: r + (pseudo > 0.6 ? 1 : 0),
-            c: c + (pseudo > 0.4 ? 1 : 0),
-            w: 1.5 + Math.floor(pseudo * 2.2),
-            h: 1.5 + Math.floor(pseudo * 2.2),
-            height: 8 + Math.floor(pseudo * 20),
-            roofType: pseudo > 0.5 ? 'gable' : 'flat',
-          });
-        }
-      }
-    }
-    return list;
-  }, []);
 
   // Render high-fidelity water and map onto canvas
   useEffect(() => {
@@ -244,8 +194,6 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       ctx.drawImage(satImgRef.current, 0, 0, width, height);
       ctx.fillStyle = 'rgba(15, 23, 42, 0.12)';
       ctx.fillRect(0, 0, width, height);
-    } else if (basemapMode === 'topo' && topoImgRef.current) {
-      ctx.drawImage(topoImgRef.current, 0, 0, width, height);
     } else {
       // Clean modern light base with subtle terrain gradient
       for (let r = 0; r < rows; r++) {
@@ -261,268 +209,149 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       }
     }
 
-    // Grid Mesh (always visible or toggled)
-    ctx.strokeStyle = showGrid ? 'rgba(255, 255, 255, 0.45)' : 'rgba(255, 255, 255, 0.28)';
-    ctx.lineWidth = 1.2;
-    for (let i = 0; i <= 8; i++) {
-      const pos = (i / 8) * width;
-      ctx.beginPath();
-      ctx.moveTo(pos, 0);
-      ctx.lineTo(pos, height);
-      ctx.stroke();
-
-      ctx.beginPath();
-      ctx.moveTo(0, pos);
-      ctx.lineTo(width, pos);
-      ctx.stroke();
-    }
-
-    // Arterial Road Corridor (Marathahalli-Bellandur ORR Highway)
-    ctx.save();
-    ctx.beginPath();
-    ctx.moveTo(0, height * 0.74);
-    ctx.bezierCurveTo(width * 0.35, height * 0.65, width * 0.65, height * 0.52, width, height * 0.42);
-    ctx.strokeStyle = 'rgba(245, 158, 11, 0.85)'; // Warm golden road corridor
-    ctx.lineWidth = 7;
-    ctx.lineCap = 'round';
-    ctx.shadowColor = 'rgba(245, 158, 11, 0.35)';
-    ctx.shadowBlur = 6;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(0, height * 0.74);
-    ctx.bezierCurveTo(width * 0.35, height * 0.65, width * 0.65, height * 0.52, width, height * 0.42);
-    ctx.strokeStyle = '#fef3c7'; // Inner road spine marking
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.restore();
-
     // Composite hillshade relief under water so terrain topography reads clearly
     if (cachedHillshadeRef.current) {
       ctx.save();
-      ctx.globalAlpha = 0.20;
+      ctx.globalAlpha = 0.22;
+      ctx.globalCompositeOperation = 'multiply';
       ctx.drawImage(cachedHillshadeRef.current, 0, 0, width, height);
       ctx.restore();
     }
 
-    // 2. Realistic Fluid Flood Inundation Layer via Bilinear Upsampling & Square-Root Color Scale
-    if (effectiveDepthFrame) {
-      const upW = 128;
-      const upH = 128;
-      const upCanvas = document.createElement('canvas');
-      upCanvas.width = upW;
-      upCanvas.height = upH;
-      const upCtx = upCanvas.getContext('2d');
+    // 2. High-Fidelity Fluid Water Surface
+    if (activeDepth) {
+      ctx.save();
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const d = activeDepth[r]?.[c] ?? 0;
+          if (d < 0.01) continue; // Pavement is dry below 1cm
 
-      if (upCtx) {
-        const imgData = upCtx.createImageData(upW, upH);
-        const data = imgData.data;
+          const x = c * cellW;
+          const y = r * cellH;
 
-        for (let y = 0; y < upH; y++) {
-          const gy = (y / (upH - 1)) * (rows - 1);
-          const r0 = Math.floor(gy);
-          const r1 = Math.min(rows - 1, r0 + 1);
-          const fy = gy - r0;
+          // Non-linear depth mapping
+          const normD = Math.min(1, Math.sqrt(d / 1.5));
+          const ripple = Math.sin((r * 4 + c * 3 + animTick * 0.08) % (Math.PI * 2)) * 0.03;
+          const alpha = Math.min(0.92, Math.max(0.42, 0.45 + normD * 0.45 + ripple));
 
-          for (let x = 0; x < upW; x++) {
-            const gx = (x / (upW - 1)) * (cols - 1);
-            const c0 = Math.floor(gx);
-            const c1 = Math.min(cols - 1, c0 + 1);
-            const fx = gx - c0;
+          // Physical depth color ramp:
+          // < 0.05m: thin sheet flow (sky-blue)
+          // 0.05m - 0.30m: street runoff (cyan/blue)
+          // 0.30m - 0.70m: impassable road (deep blue)
+          // > 0.70m: deep inundation (midnight indigo)
+          let rVal: number, gVal: number, bVal: number;
+          if (d < 0.05) {
+            const t = d / 0.05;
+            rVal = Math.floor(56 + t * (6 - 56));
+            gVal = Math.floor(189 + t * (182 - 189));
+            bVal = Math.floor(248 + t * (212 - 248));
+          } else if (d < 0.3) {
+            const t = (d - 0.05) / 0.25;
+            rVal = Math.floor(6 + t * (2 - 6));
+            gVal = Math.floor(182 + t * (132 - 182));
+            bVal = Math.floor(212 + t * (199 - 212));
+          } else if (d < 0.7) {
+            const t = (d - 0.3) / 0.4;
+            rVal = Math.floor(2 + t * (30 - 2));
+            gVal = Math.floor(132 + t * (64 - 132));
+            bVal = Math.floor(199 + t * (175 - 199));
+          } else {
+            const t = Math.min(1, (d - 0.7) / 1.0);
+            rVal = Math.floor(30 + t * (15 - 30));
+            gVal = Math.floor(64 + t * (23 - 64));
+            bVal = Math.floor(175 + t * (42 - 175));
+          }
 
-            const d00 = effectiveDepthFrame[r0]?.[c0] ?? 0;
-            const d01 = effectiveDepthFrame[r0]?.[c1] ?? 0;
-            const d10 = effectiveDepthFrame[r1]?.[c0] ?? 0;
-            const d11 = effectiveDepthFrame[r1]?.[c1] ?? 0;
+          ctx.fillStyle = `rgba(${rVal}, ${gVal}, ${bVal}, ${alpha})`;
+          ctx.fillRect(x, y, cellW + 0.5, cellH + 0.5);
 
-            // Bilinear interpolation across 4 grid cell corners
-            const d =
-              (1 - fx) * (1 - fy) * d00 +
-              fx * (1 - fy) * d01 +
-              (1 - fx) * fy * d10 +
-              fx * fy * d11;
-
-            const idx = (y * upW + x) * 4;
-
-            // Depths under 1 cm (0.01 m) remain transparent
-            if (d >= 0.01) {
-              // Non-linear square-root perceptual depth scaling: 0 at 1cm, 1.0 at 2.0m depth
-              const t = Math.min(1.0, Math.sqrt((d - 0.01) / 1.99));
-
-              let r: number, g: number, b: number, a: number;
-              if (t < 0.25) {
-                // 1cm - 15cm: Sheet flow (translucent sky-cyan)
-                const s = t / 0.25;
-                r = Math.round(56 * (1 - s) + 14 * s);
-                g = Math.round(189 * (1 - s) + 165 * s);
-                b = Math.round(248 * (1 - s) + 233 * s);
-                a = Math.round((0.35 + 0.35 * s) * 255);
-              } else if (t < 0.55) {
-                // 15cm - 60cm: Street curb flow (vibrant azure)
-                const s = (t - 0.25) / 0.3;
-                r = Math.round(14 * (1 - s) + 2 * s);
-                g = Math.round(165 * (1 - s) + 132 * s);
-                b = Math.round(233 * (1 - s) + 199 * s);
-                a = Math.round((0.70 + 0.15 * s) * 255);
-              } else if (t < 0.85) {
-                // 60cm - 1.4m: Deep car-submerging flow (royal cobalt)
-                const s = (t - 0.55) / 0.3;
-                r = Math.round(2 * (1 - s) + 30 * s);
-                g = Math.round(132 * (1 - s) + 64 * s);
-                b = Math.round(199 * (1 - s) + 175 * s);
-                a = Math.round((0.85 + 0.08 * s) * 255);
-              } else {
-                // > 1.4m: Oceanic indigo retention storage
-                const s = (t - 0.85) / 0.15;
-                r = Math.round(30 * (1 - s) + 15 * s);
-                g = Math.round(64 * (1 - s) + 23 * s);
-                b = Math.round(175 * (1 - s) + 72 * s);
-                a = Math.round((0.93 + 0.05 * s) * 255);
-              }
-
-              data[idx] = r;
-              data[idx + 1] = g;
-              data[idx + 2] = b;
-              data[idx + 3] = a;
-            }
+          // Specular water sheen along surface borders
+          if (d >= 0.15 && (r + c) % 3 === 0) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, 0.18 + ripple)})`;
+            ctx.fillRect(x + cellW * 0.2, y + cellH * 0.15, cellW * 0.6, cellH * 0.25);
           }
         }
-        upCtx.putImageData(imgData, 0, 0);
+      }
+      ctx.restore();
+    }
 
-        // Composite smooth upsampled fluid onto main canvas with browser filtering
-        ctx.save();
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(upCanvas, 0, 0, width, height);
-
-        // Specular water sheen overlay for realistic liquid appearance
-        ctx.globalCompositeOperation = 'screen';
-        const sheenGrad = ctx.createLinearGradient(0, 0, width, height);
-        sheenGrad.addColorStop(0, 'rgba(255, 255, 255, 0.09)');
-        sheenGrad.addColorStop(0.5, 'rgba(56, 189, 248, 0.05)');
-        sheenGrad.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
-        ctx.fillStyle = sheenGrad;
-        ctx.fillRect(0, 0, width, height);
-        ctx.restore();
+    // Subtle 64x64 grid lines
+    if (showGrid) {
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+      ctx.lineWidth = 0.5;
+      for (let r = 0; r <= rows; r += 4) {
+        ctx.beginPath();
+        ctx.moveTo(0, r * cellH);
+        ctx.lineTo(width, r * cellH);
+        ctx.stroke();
+      }
+      for (let c = 0; c <= cols; c += 4) {
+        ctx.beginPath();
+        ctx.moveTo(c * cellW, 0);
+        ctx.lineTo(c * cellW, height);
+        ctx.stroke();
       }
     }
 
-    // 3. Indicative Flow Direction Streamlines (derived from water surface gradient eta = z + h)
-    if (showFlowVectors && effectiveDepthFrame && terrain) {
+    // Indicative Flow Vectors
+    if (showFlowVectors && terrain) {
       ctx.save();
       const elev = terrain.elevation;
-      const dx = terrain.dx_m || 60.9;
-      const offsetFrac = (animTick % 20) / 20.0;
+      const step = 4;
+      ctx.fillStyle = 'rgba(2, 132, 199, 0.85)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.lineWidth = 1;
 
-      // Sample every 4th cell for clean, readable vector spacing
-      for (let r = 2; r < rows - 2; r += 4) {
-        for (let c = 2; c < cols - 2; c += 4) {
-          const h = effectiveDepthFrame[r]?.[c] ?? 0;
-          if (h >= 0.02) {
-            const etaW = (elev[r]?.[c - 1] ?? 0) + (effectiveDepthFrame[r]?.[c - 1] ?? 0);
-            const etaE = (elev[r]?.[c + 1] ?? 0) + (effectiveDepthFrame[r]?.[c + 1] ?? 0);
-            const etaN = (elev[r - 1]?.[c] ?? 0) + (effectiveDepthFrame[r - 1]?.[c] ?? 0);
-            const etaS = (elev[r + 1]?.[c] ?? 0) + (effectiveDepthFrame[r + 1]?.[c] ?? 0);
+      for (let r = 2; r < rows; r += step) {
+        for (let c = 2; c < cols; c += step) {
+          const depth = activeDepth?.[r]?.[c] ?? 0;
+          if (depth < 0.03) continue;
 
-            const dEtadx = (etaE - etaW) / (2 * dx);
-            const dEtady = (etaS - etaN) / (2 * dx);
-            const gradMag = Math.sqrt(dEtadx * dEtadx + dEtady * dEtady);
+          const rUp = Math.max(0, r - 1);
+          const rDown = Math.min(rows - 1, r + 1);
+          const cLeft = Math.max(0, c - 1);
+          const cRight = Math.min(cols - 1, c + 1);
 
-            if (gradMag > 0.0002) {
-              const angle = Math.atan2(-dEtady, -dEtadx); // Downhill flow angle
-              const centerX = (c + 0.5) * cellW;
-              const centerY = (r + 0.5) * cellH;
+          const dzdx = (elev[r][cRight] - elev[r][cLeft]) / 2;
+          const dzdy = (elev[rDown][c] - elev[rUp][c]) / 2;
 
-              const arrowLen = Math.min(cellW * 1.5, Math.max(cellW * 0.7, gradMag * 4000));
-              const startX = centerX - Math.cos(angle) * (arrowLen * 0.5) + Math.cos(angle) * (offsetFrac * 6);
-              const startY = centerY - Math.sin(angle) * (arrowLen * 0.5) + Math.sin(angle) * (offsetFrac * 6);
-              const endX = startX + Math.cos(angle) * arrowLen;
-              const endY = startY + Math.sin(angle) * arrowLen;
+          let vx = -dzdx;
+          let vy = -dzdy;
+          const mag = Math.hypot(vx, vy);
 
-              ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
-              ctx.lineWidth = 1.2;
-              ctx.beginPath();
-              ctx.moveTo(startX, startY);
-              ctx.lineTo(endX, endY);
-              ctx.stroke();
+          if (mag > 0.05) {
+            vx /= mag;
+            vy /= mag;
+            const cx = (c + 0.5) * cellW;
+            const cy = (r + 0.5) * cellH;
+            const arrowLen = Math.min(cellW * 1.6, 10 + depth * 5);
 
-              const tipSize = 3;
-              ctx.fillStyle = '#ffffff';
-              ctx.beginPath();
-              ctx.moveTo(endX, endY);
-              ctx.lineTo(
-                endX - tipSize * Math.cos(angle - Math.PI / 6),
-                endY - tipSize * Math.sin(angle - Math.PI / 6)
-              );
-              ctx.lineTo(
-                endX - tipSize * Math.cos(angle + Math.PI / 6),
-                endY - tipSize * Math.sin(angle + Math.PI / 6)
-              );
-              ctx.closePath();
-              ctx.fill();
-            }
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + vx * arrowLen, cy + vy * arrowLen);
+            ctx.stroke();
+
+            const angle = Math.atan2(vy, vx);
+            const headLen = 3.5;
+            ctx.beginPath();
+            ctx.moveTo(cx + vx * arrowLen, cy + vy * arrowLen);
+            ctx.lineTo(
+              cx + vx * arrowLen - headLen * Math.cos(angle - Math.PI / 6),
+              cy + vy * arrowLen - headLen * Math.sin(angle - Math.PI / 6)
+            );
+            ctx.lineTo(
+              cx + vx * arrowLen - headLen * Math.cos(angle + Math.PI / 6),
+              cy + vy * arrowLen - headLen * Math.sin(angle + Math.PI / 6)
+            );
+            ctx.closePath();
+            ctx.fill();
           }
         }
       }
       ctx.restore();
     }
 
-    // 3. 3D Extruded Urban Building Blocks (matching 3D isometric perspective reference)
-    if (show3DBuildings && viewAngle === '3d') {
-      ctx.save();
-      for (const b of urbanBuildings) {
-        const bx = b.c * cellW;
-        const by = b.r * cellH;
-        const bw = b.w * cellW;
-        const bh = b.h * cellH;
-        const hOffset = Math.min(32, (b.height / 30) * 18);
-
-        // Building shadow
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
-        ctx.fillRect(bx + 4, by + 4, bw, bh);
-
-        // Building Walls (crisp white with dark slate outline)
-        ctx.fillStyle = '#e2e8f0';
-        ctx.beginPath();
-        ctx.moveTo(bx, by + bh);
-        ctx.lineTo(bx + bw, by + bh);
-        ctx.lineTo(bx + bw, by + bh + hOffset * 0.5);
-        ctx.lineTo(bx, by + bh + hOffset * 0.5);
-        ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-
-        // Building Rooftop (white surface with dark perimeter outline)
-        if (b.roofType === 'gable') {
-          // Gabled roof peak
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.moveTo(bx, by - hOffset * 0.5);
-          ctx.lineTo(bx + bw / 2, by - hOffset * 0.5 - 6);
-          ctx.lineTo(bx + bw, by - hOffset * 0.5);
-          ctx.lineTo(bx + bw, by + bh - hOffset * 0.5);
-          ctx.lineTo(bx + bw / 2, by + bh - hOffset * 0.5 - 6);
-          ctx.lineTo(bx, by + bh - hOffset * 0.5);
-          ctx.closePath();
-          ctx.fill();
-          ctx.strokeStyle = '#1e293b';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        } else {
-          // Flat roof
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(bx, by - hOffset * 0.5, bw, bh);
-          ctx.strokeStyle = '#1e293b';
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(bx, by - hOffset * 0.5, bw, bh);
-        }
-      }
-      ctx.restore();
-    }
-
-    // 4. Active Probe Pin Marker (matching Attachment 2 red circle with white center)
+    // Active Probe Pin Marker (red circle with white center)
     const probeCell = selectedProbeCell || { row: 38, col: 26 };
     const pinX = (probeCell.col + 0.5) * cellW;
     const pinY = (probeCell.row + 0.5) * cellH;
@@ -552,17 +381,17 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   }, [
     terrain,
     depthFrame,
+    activeDepth,
     rows,
     cols,
     minElev,
     maxElev,
     showGrid,
+    showFlowVectors,
+    animTick,
     basemapMode,
-    viewAngle,
-    show3DBuildings,
     imagesLoaded,
     selectedProbeCell,
-    urbanBuildings,
   ]);
 
   // Cell Coordinates Calculation
@@ -571,16 +400,6 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     const lon = minLon + ((c + 0.5) / cols) * (maxLon - minLon);
     return { lat, lon };
   };
-
-  // Active cell for Street View (either selected probe cell or center ORR)
-  const activeStreetCell = useMemo(() => {
-    const r = selectedProbeCell?.row ?? 32;
-    const c = selectedProbeCell?.col ?? 32;
-    const { lat, lon } = getCellLatLon(r, c);
-    const depth = depthFrame?.[r]?.[c] ?? 0;
-    const elevation = terrain?.elevation[r]?.[c] ?? 878;
-    return { row: r, col: c, lat, lon, depth, elevation };
-  }, [selectedProbeCell, depthFrame, terrain, rows, cols]);
 
   // Handle mouse move to extract cell diagnostics
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -680,10 +499,6 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     link.click();
   };
 
-  // Google Street View 360 link for current coordinate
-  const googleStreetViewUrl = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${activeStreetCell.lat.toFixed(6)},${activeStreetCell.lon.toFixed(6)}`;
-  const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${activeStreetCell.lat.toFixed(6)},${activeStreetCell.lon.toFixed(6)}`;
-
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden text-slate-900">
       {/* Top Map Bar */}
@@ -696,33 +511,9 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           <span className="font-mono text-slate-500">Marathahalli-Bellandur ORR</span>
         </div>
 
-        {/* Basemap Switcher & Action Controls matching reference toolbar */}
+        {/* Basemap Switcher & Action Controls */}
         <div className="flex flex-wrap items-center gap-1.5">
-          {/* 2D Plan vs 3D Street View */}
-          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
-            <button
-              onClick={() => setViewAngle('2d')}
-              className={`px-2.5 py-1 rounded-md transition font-medium ${
-                viewAngle === '2d'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              2D Map
-            </button>
-            <button
-              onClick={() => setViewAngle('3d')}
-              className={`px-2.5 py-1 rounded-md transition font-medium ${
-                viewAngle === '3d'
-                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              3D Street View
-            </button>
-          </div>
-
-          {/* Streets | Satellite | Topo */}
+          {/* Streets vs Satellite */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
             <button
               onClick={() => setBasemapMode('streets')}
@@ -744,25 +535,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             >
               Satellite
             </button>
-            <button
-              onClick={() => setBasemapMode('topo')}
-              className={`px-2.5 py-1 rounded-md transition font-medium ${
-                basemapMode === 'topo'
-                  ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Topo
-            </button>
           </div>
-
-          {/* Ground Level Modal */}
-          <button
-            onClick={() => setIsStreetViewOpen(true)}
-            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-medium transition"
-          >
-            Ground Level
-          </button>
 
           {/* Flow Vectors */}
           <button
@@ -776,7 +549,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             Flow Vectors
           </button>
 
-          {/* Layers */}
+          {/* Layers (Grid) */}
           <button
             onClick={() => setShowGrid(!showGrid)}
             className={`px-2.5 py-1 rounded-lg border text-xs font-medium transition ${
@@ -785,7 +558,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
             }`}
           >
-            Layers
+            Grid
           </button>
 
           {/* Export */}
@@ -798,43 +571,24 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         </div>
       </div>
 
-      {/* Map Perspective View Container (Supports 3D Oblique Tilt) */}
-      <div
-        className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center transition-all duration-500"
-        style={{
-          perspective: viewAngle === '3d' ? '1200px' : 'none',
-        }}
-      >
-        <div
-          className="w-full h-full flex items-center justify-center transition-transform duration-500 origin-center"
-          style={{
-            transform:
-              viewAngle === '3d'
-                ? 'rotateX(42deg) rotateZ(-12deg) scale(0.92) translateY(10px)'
-                : 'none',
-            boxShadow:
-              viewAngle === '3d'
-                ? '0 20px 40px -10px rgba(0, 0, 0, 0.2), 0 10px 20px -10px rgba(0, 0, 0, 0.15)'
-                : 'none',
-          }}
-        >
-          {!terrain ? (
-            <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center gap-3 animate-pulse p-6 text-slate-500">
-              <div className="w-10 h-10 rounded-full border-2 border-brand-500/40 border-t-brand-600 animate-spin" />
-              <span className="text-xs font-mono">Loading DEM terrain raster...</span>
-            </div>
-          ) : (
-            <canvas
-              ref={canvasRef}
-              width={768}
-              height={768}
-              onClick={handleCanvasClick}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              className="w-full h-full object-contain cursor-crosshair rounded-lg"
-            />
-          )}
-        </div>
+      {/* Map View Container */}
+      <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center">
+        {!terrain ? (
+          <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center gap-3 animate-pulse p-6 text-slate-500">
+            <div className="w-10 h-10 rounded-full border-2 border-brand-500/40 border-t-brand-600 animate-spin" />
+            <span className="text-xs font-mono">Loading DEM terrain raster...</span>
+          </div>
+        ) : (
+          <canvas
+            ref={canvasRef}
+            width={768}
+            height={768}
+            onClick={handleCanvasClick}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className="w-full h-full object-contain cursor-crosshair rounded-lg"
+          />
+        )}
 
         {/* Loading Overlay when rolling out inference */}
         {isLoading && (
@@ -846,27 +600,17 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           </div>
         )}
 
-        {/* North Arrow Indicator matching reference */}
-        {viewAngle === '3d' ? (
-          <div className="absolute top-3 right-3 w-9 h-9 rounded-full bg-slate-900/85 backdrop-blur border border-slate-700/80 shadow-md flex items-center justify-center pointer-events-none z-10">
-            <Compass className="w-5 h-5 text-sky-400" />
-            <span className="absolute -top-1 right-1.5 text-[8px] font-bold text-rose-500 font-mono">N</span>
-          </div>
-        ) : (
-          <div className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-white/90 backdrop-blur border border-slate-200 shadow-xs flex items-center gap-1 pointer-events-none z-10">
-            <span className="text-[11px] font-bold text-slate-700 font-mono">N &uarr;</span>
-          </div>
-        )}
+        {/* Standard North Arrow Indicator */}
+        <div className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-white/90 backdrop-blur border border-slate-200 shadow-xs flex items-center gap-1 pointer-events-none z-10">
+          <span className="text-[11px] font-bold text-slate-700 font-mono">N &uarr;</span>
+        </div>
 
-        {/* Selected Probe Badge or Click Street Prompt */}
+        {/* Selected Probe Badge or Click Prompt */}
         {selectedProbeCell ? (
-          <div
-            onClick={() => setIsStreetViewOpen(true)}
-            className="absolute top-3 left-3 bg-white/95 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs flex items-center gap-1.5 z-10 cursor-pointer hover:bg-slate-50 transition"
-            title="Click to view Street View at probe"
-          >
+          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur border border-slate-200 rounded-lg px-2.5 py-1 text-[11px] text-slate-700 font-mono shadow-xs flex items-center gap-1.5 z-10">
             <span>
-              Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}] &middot; {activeStreetCell.lat.toFixed(3)}&deg;N
+              Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}] &middot;{' '}
+              {getCellLatLon(selectedProbeCell.row, selectedProbeCell.col).lat.toFixed(3)}&deg;N
             </span>
           </div>
         ) : (
@@ -913,7 +657,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         )}
       </div>
 
-      {/* Colormap Legend Scale (Square-Root Non-Linear Perceptual Ramp) */}
+      {/* Colormap Legend Scale */}
       <div className="flex flex-col gap-1.5 pt-1">
         <div className="h-2 w-full rounded-full overflow-hidden flex shadow-inner border border-slate-200">
           <div className="w-[12%] bg-slate-200" title="Dry pavement (< 0.01m / 1cm)" />
@@ -929,220 +673,6 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           <span>2.0m+ Deep deluge</span>
         </div>
       </div>
-
-      {/* Real Street View & Inundation Simulation Modal */}
-      {isStreetViewOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto text-slate-900">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-cyan-600" />
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    Real Google Street View &amp; Flood Level Simulator
-                  </h3>
-                  <p className="text-xs text-slate-500 font-mono">
-                    Marathahalli–Bellandur Outer Ring Road • Cell [{activeStreetCell.row},{' '}
-                    {activeStreetCell.col}]
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsStreetViewOpen(false)}
-                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* GPS Location & Live Depth Diagnostics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase font-mono">Latitude</span>
-                <p className="text-sm font-bold text-slate-900 font-mono">{activeStreetCell.lat.toFixed(5)}° N</p>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase font-mono">Longitude</span>
-                <p className="text-sm font-bold text-slate-900 font-mono">{activeStreetCell.lon.toFixed(5)}° E</p>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase font-mono">Ground Elevation</span>
-                <p className="text-sm font-bold text-cyan-700 font-mono">
-                  {activeStreetCell.elevation.toFixed(2)} m
-                </p>
-              </div>
-              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                <span className="text-[10px] text-slate-500 uppercase font-mono">Simulation Depth</span>
-                <p className="text-sm font-bold text-cyan-700 font-mono">
-                  {activeStreetCell.depth.toFixed(3)} m ({(activeStreetCell.depth * 100).toFixed(0)} cm)
-                </p>
-              </div>
-            </div>
-
-            {/* Street-Level Water Inundation Simulator Canvas / Graphic */}
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col gap-3 relative overflow-hidden">
-              <div className="flex items-center justify-between text-xs text-slate-700 font-semibold border-b border-slate-200 pb-2">
-                <span className="flex items-center gap-1.5 text-cyan-700">
-                  <Waves className="w-4 h-4" />
-                  Street Cross-Section Simulation (Water Level vs. Vehicles)
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    activeStreetCell.depth >= 0.3
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : activeStreetCell.depth >= 0.15
-                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                      : activeStreetCell.depth >= 0.05
-                      ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  }`}
-                >
-                  {activeStreetCell.depth >= 0.6
-                    ? 'CRITICAL DELUGE'
-                    : activeStreetCell.depth >= 0.3
-                    ? 'ROAD CUTOFF'
-                    : activeStreetCell.depth >= 0.15
-                    ? 'VEHICLE HAZARD'
-                    : activeStreetCell.depth >= 0.05
-                    ? 'SHALLOW POOL'
-                    : 'DRY PAVEMENT'}
-                </span>
-              </div>
-
-              {/* Dynamic Street Cross-Section SVG */}
-              <div className="relative h-44 w-full bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-end">
-                {/* Sky / Urban Backdrop */}
-                <div className="absolute inset-0 bg-gradient-to-b from-sky-100 via-sky-50 to-slate-100" />
-
-                {/* City skyline silhouettes */}
-                <svg className="absolute inset-0 w-full h-full opacity-20" preserveAspectRatio="none">
-                  <rect x="5%" y="45%" width="12%" height="55%" fill="#0284c7" />
-                  <rect x="20%" y="30%" width="15%" height="70%" fill="#0284c7" />
-                  <rect x="40%" y="50%" width="10%" height="50%" fill="#0284c7" />
-                  <rect x="55%" y="35%" width="16%" height="65%" fill="#0284c7" />
-                  <rect x="75%" y="40%" width="14%" height="60%" fill="#0284c7" />
-                </svg>
-
-                {/* Sidewalk & Concrete Curb (Left side, 15cm high) */}
-                <div className="absolute bottom-0 left-0 w-28 h-10 bg-slate-300 border-t-2 border-r-2 border-slate-400 z-10 flex items-center justify-center">
-                  <span className="text-[9px] text-slate-700 font-mono font-bold">Sidewalk (15cm)</span>
-                </div>
-
-                {/* Asphalt Road Surface */}
-                <div className="absolute bottom-0 left-28 right-0 h-6 bg-slate-800 border-t-2 border-slate-600 flex items-center justify-around z-10">
-                  <div className="w-8 h-1 bg-amber-400" />
-                  <div className="w-8 h-1 bg-amber-400" />
-                  <div className="w-8 h-1 bg-amber-400" />
-                  <div className="w-8 h-1 bg-amber-400" />
-                </div>
-
-                {/* Car Silhouette (placed on the street) */}
-                <div className="absolute bottom-6 left-48 z-15 w-40 h-20 pointer-events-none">
-                  <svg viewBox="0 0 160 80" className="w-full h-full drop-shadow-md">
-                    {/* Car Body */}
-                    <path
-                      d="M 15 50 L 25 35 L 55 25 L 105 25 L 125 35 L 148 42 L 152 58 L 138 58 A 12 12 0 0 1 114 58 L 52 58 A 12 12 0 0 1 28 58 L 10 58 Z"
-                      fill="#0284c7"
-                    />
-                    {/* Windows */}
-                    <path d="M 57 28 L 80 28 L 80 44 L 38 44 Z" fill="#e0f2fe" opacity="0.9" />
-                    <path d="M 85 28 L 104 28 L 120 44 L 85 44 Z" fill="#e0f2fe" opacity="0.9" />
-                    {/* Wheels */}
-                    <circle cx="40" cy="58" r="11" fill="#1e293b" stroke="#64748b" strokeWidth="2" />
-                    <circle cx="126" cy="58" r="11" fill="#1e293b" stroke="#64748b" strokeWidth="2" />
-                    <circle cx="40" cy="58" r="4" fill="#94a3b8" />
-                    <circle cx="126" cy="58" r="4" fill="#94a3b8" />
-                  </svg>
-                </div>
-
-                {/* Dynamic Flood Water Layer */}
-                {activeStreetCell.depth > 0 && (
-                  <div
-                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-600/80 via-cyan-500/70 to-cyan-300/60 z-20 transition-all duration-300 border-t-2 border-cyan-200"
-                    style={{
-                      height: `${Math.min(
-                        140,
-                        Math.max(6, (activeStreetCell.depth / 1.0) * 80 + 24)
-                      )}px`,
-                    }}
-                  >
-                    {/* Water Surface Ripples */}
-                    <div className="w-full h-1 bg-white/50 animate-pulse" />
-                    <div className="px-3 pt-1 flex justify-between items-center text-[10px] font-mono font-bold text-white drop-shadow">
-                      <span>Simulated Water: {(activeStreetCell.depth * 100).toFixed(0)} cm</span>
-                      <span>h = {activeStreetCell.depth.toFixed(3)} m</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Water Height Reference Markers */}
-                <div className="absolute right-2 bottom-6 top-4 flex flex-col justify-between text-[9px] font-mono text-slate-500 border-l border-dashed border-slate-300 pl-1 z-30 pointer-events-none">
-                  <span className="text-rose-600 font-bold">100cm (Roof)</span>
-                  <span className="text-amber-600 font-bold">60cm (Intake)</span>
-                  <span className="text-amber-700 font-bold">30cm (Exhaust)</span>
-                  <span className="text-cyan-700 font-bold">15cm (Curb)</span>
-                  <span className="text-slate-500">0cm (Road)</span>
-                </div>
-              </div>
-
-              {/* Physical Hazard Guidance Message */}
-              <div className="text-xs text-slate-700 flex items-start gap-2 bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
-                <AlertTriangle
-                  className={`w-4 h-4 shrink-0 mt-0.5 ${
-                    activeStreetCell.depth >= 0.3
-                      ? 'text-rose-600'
-                      : activeStreetCell.depth >= 0.15
-                      ? 'text-amber-600'
-                      : 'text-cyan-600'
-                  }`}
-                />
-                <div>
-                  <span className="font-bold text-slate-900">
-                    {activeStreetCell.depth >= 0.3
-                      ? 'Severe Road Inundation — Structural Danger: '
-                      : activeStreetCell.depth >= 0.15
-                      ? 'Vehicle Travel Warning: '
-                      : 'Street Traversible: '}
-                  </span>
-                  {activeStreetCell.depth >= 0.6
-                    ? 'Water level exceeds 60 cm. Street impassable to all emergency access vehicles. Ground-floor structural inundation expected.'
-                    : activeStreetCell.depth >= 0.3
-                    ? 'Water has reached 30 cm, entering typical vehicle exhaust tailpipes and air intakes. Standard sedans will stall.'
-                    : activeStreetCell.depth >= 0.15
-                    ? 'Water has breached the 15 cm concrete road curb and is entering wheel hubs. High hydroplaning hazard.'
-                    : 'Water depth is beneath curb height. Street traffic can proceed with reduced speed.'}
-                </div>
-              </div>
-            </div>
-
-            {/* Google Street View 360 & Google Maps Launch Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <a
-                href={googleStreetViewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs shadow-md shadow-cyan-600/20 transition"
-              >
-                <Camera className="w-4 h-4" />
-                <span>Open in Google Street View (360° Panorama)</span>
-                <ExternalLink className="w-3.5 h-3.5 ml-1" />
-              </a>
-
-              <a
-                href={googleMapsSearchUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-200 transition"
-              >
-                <Navigation className="w-4 h-4 text-emerald-600" />
-                <span>View on Google Maps</span>
-                <ExternalLink className="w-3.5 h-3.5 ml-1" />
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
