@@ -10,8 +10,15 @@ import {
   TerrainData,
 } from './types';
 
-// Read API base URL from Vite environment variable with localhost fallback
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Read API base URL from Vite environment variable with smart cloud/localhost fallback
+const API_BASE =
+  import.meta.env.VITE_API_URL !== undefined
+    ? import.meta.env.VITE_API_URL
+    : typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    ? ''
+    : 'http://localhost:8000';
 
 // In-memory cache for static presets
 let presetsCache: PresetItem[] | null = null;
