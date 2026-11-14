@@ -160,6 +160,7 @@ class CompareResponse(BaseModel):
     surrogate: ForecastResponse
     solver: SolverResponse
     metrics: MetricsResponse
+    model_name: Optional[str] = Field("mock-v0", description="Surrogate model identifier.")
 
 
 class PresetItem(BaseModel):

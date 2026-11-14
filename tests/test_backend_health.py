@@ -12,13 +12,23 @@ from backend.app import app
 client = TestClient(app)
 
 
-def test_health_endpoint():
+def test_health_endpoint_mock():
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
     assert data["model_loaded"] is True
     assert data["is_mock"] is True
+    assert data["contract_version"] == "1.0"
+
+
+def test_health_endpoint_real_mode(monkeypatch):
+    monkeypatch.setenv("HYDRO_MODE", "real")
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["is_mock"] is False
     assert data["contract_version"] == "1.0"
 
 
@@ -94,4 +104,5 @@ def test_compare_endpoint_mock_execution():
     assert "metrics" in data
     assert "speedup" in data["metrics"]
     assert "wet_iou" in data["metrics"]
+    assert data["model_name"] == "mock-v0"
 

@@ -35,6 +35,7 @@ const DEFAULT_PARAMS: ForecastParams = {
 
 export const App: React.FC = () => {
   const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [isMock, setIsMock] = useState<boolean>(true);
   const [terrain, setTerrain] = useState<TerrainData | null>(null);
   const [presets, setPresets] = useState<PresetItem[]>([]);
 
@@ -66,8 +67,7 @@ export const App: React.FC = () => {
           fetchPresets(),
         ]);
         setHealth(h);
-        setTerrain(t);
-        setPresets(p);
+        setIsMock(Boolean(h?.is_mock));
         setTerrain(t);
         setPresets(p);
 
@@ -81,6 +81,21 @@ export const App: React.FC = () => {
     };
 
     initialize();
+  }, []);
+
+  // Poll /health every 30 seconds to track engine status
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const h = await fetchHealth();
+        setHealth(h);
+        setIsMock(Boolean(h?.is_mock));
+      } catch (err) {
+        console.warn('Failed to poll /health endpoint:', err);
+      }
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   // Execute neural surrogate forecast
@@ -142,6 +157,14 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
+      {/* Persistent Amber Mock-Mode Banner */}
+      {isMock && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>MOCK ENGINE: simulated data, not real model results</span>
+        </div>
+      )}
+
       <Header
         health={health}
         inferenceTimeMs={forecastResult?.inference_time_ms}
@@ -175,6 +198,7 @@ export const App: React.FC = () => {
             terrain={terrain}
             currentFrame={currentFrame}
             onClose={() => setCompareResult(null)}
+            isMock={isMock}
           />
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -186,6 +210,7 @@ export const App: React.FC = () => {
                 title="⚡ Live Neural Surrogate Forecast Overlay"
                 selectedProbeCell={selectedProbeCell}
                 onSelectProbeCell={setSelectedProbeCell}
+                isMock={isMock}
               />
 
               <PointProbe

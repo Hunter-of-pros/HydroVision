@@ -105,5 +105,7 @@ export interface CompareResult {
   surrogate: ForecastResult;
   solver: SolverResult;
   metrics: ComparisonMetrics;
+  model_name?: string;
 }
+
 

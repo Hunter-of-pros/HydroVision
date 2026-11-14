@@ -9,6 +9,7 @@ interface MapViewerProps {
   isSolverComparison?: boolean;
   selectedProbeCell?: { row: number; col: number } | null;
   onSelectProbeCell?: (cell: { row: number; col: number; elevation: number } | null) => void;
+  isMock?: boolean;
 }
 
 export const MapViewer: React.FC<MapViewerProps> = ({
@@ -18,6 +19,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   isSolverComparison = false,
   selectedProbeCell,
   onSelectProbeCell,
+  isMock = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [hoverCell, setHoverCell] = useState<{
@@ -173,9 +175,60 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    if (!isMock) {
+      const link = document.createElement('a');
+      link.download = `hydrovision-flood-map-${Date.now()}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      return;
+    }
+
+    // Stamp visible "MOCK DATA" watermark on exported image when mock
+    const exportCanvas = document.createElement('canvas');
+    exportCanvas.width = canvas.width;
+    exportCanvas.height = canvas.height;
+    const ctx = exportCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Draw base map frame
+    ctx.drawImage(canvas, 0, 0);
+
+    // Diagonal semi-transparent watermark across center
+    ctx.save();
+    ctx.translate(exportCanvas.width / 2, exportCanvas.height / 2);
+    ctx.rotate(-Math.PI / 6);
+    ctx.font = '900 42px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Shadow
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillText('MOCK DATA', 2, 2);
+
+    // Main watermark text
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.85)';
+    ctx.fillText('MOCK DATA', 0, 0);
+
+    // Subtitle
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.fillText('SIMULATED • NOT REAL RESULTS', 0, 36);
+    ctx.restore();
+
+    // Top-left prominent badge
+    ctx.save();
+    ctx.fillStyle = 'rgba(180, 83, 9, 0.9)';
+    ctx.fillRect(12, 12, 130, 26);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('⚠️ MOCK DATA', 20, 25);
+    ctx.restore();
+
     const link = document.createElement('a');
-    link.download = `hydrovision-flood-map-${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.download = `hydrovision-mock-flood-map-${Date.now()}.png`;
+    link.href = exportCanvas.toDataURL('image/png');
     link.click();
   };
 

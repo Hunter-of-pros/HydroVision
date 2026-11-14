@@ -12,38 +12,57 @@ import os
 from typing import Any, Dict, List
 
 # Environment mode: "mock" (default) or "real"
-HYDRO_MODE: str = os.getenv("HYDRO_MODE", "mock").lower()
-
-if HYDRO_MODE == "real":
-    import hydrovision_ml.api as ml_module
-else:
-    import hydrovision_ml.mock as ml_module
+def get_hydro_mode() -> str:
+    """Return the active HYDRO_MODE setting ('mock' or 'real')."""
+    return os.getenv("HYDRO_MODE", "mock").lower()
 
 
 def is_mock_mode() -> bool:
     """Check if the backend is operating in mock mode."""
-    return HYDRO_MODE != "real"
+    return get_hydro_mode() != "real"
+
+
+def get_ml_module():
+    """Dynamically return the active ML module based on current HYDRO_MODE."""
+    if is_mock_mode():
+        import hydrovision_ml.mock as m
+        return m
+    else:
+        import hydrovision_ml.api as a
+        return a
 
 
 def get_health() -> Dict[str, Any]:
-    """Retrieve operational health and model status."""
-    info = ml_module.get_model_info()
+    """Retrieve operational health and model status for both mock and real modes."""
+    ml = get_ml_module()
+    mock_active = is_mock_mode()
+    model_loaded = False
+    contract_ver = "1.0"
+    try:
+        info = ml.get_model_info()
+        mock_active = bool(info.get("is_mock", mock_active))
+        model_loaded = True
+        contract_ver = str(info.get("contract_version", "1.0"))
+    except Exception:
+        # In real mode when weights are not yet loaded, model_loaded is False
+        model_loaded = False
+
     return {
         "status": "ok",
-        "model_loaded": True,
-        "is_mock": bool(info.get("is_mock", is_mock_mode())),
-        "contract_version": str(info.get("contract_version", "1.0")),
+        "model_loaded": model_loaded,
+        "is_mock": mock_active,
+        "contract_version": contract_ver,
     }
 
 
 def get_config() -> Dict[str, Any]:
     """Retrieve configuration dictionary loaded from config.json."""
-    return ml_module.get_config()
+    return get_ml_module().get_config()
 
 
 def get_terrain() -> Dict[str, Any]:
     """Retrieve digital elevation model and geographic bounds."""
-    return ml_module.get_terrain()
+    return get_ml_module().get_terrain()
 
 
 def get_presets() -> List[Dict[str, Any]]:
@@ -93,8 +112,12 @@ def get_presets() -> List[Dict[str, Any]]:
 
 def forecast(params: Dict[str, Any]) -> Dict[str, Any]:
     """Execute neural surrogate forecast rollout."""
+    ml = get_ml_module()
     stride = int(params.get("frame_stride", 1))
-    result = ml_module.forecast(params)
+    result = ml.forecast(params)
+    if "model_name" not in result:
+        result["model_name"] = "mock-v0" if is_mock_mode() else "unet-surrogate-v1"
+
     if stride > 1:
         result["times_s"] = result["times_s"][::stride]
         result["depth_frames"] = result["depth_frames"][::stride]
@@ -106,10 +129,14 @@ def forecast(params: Dict[str, Any]) -> Dict[str, Any]:
 
 def compare(params: Dict[str, Any]) -> Dict[str, Any]:
     """Execute both surrogate and numerical solver, computing comparative metrics."""
+    ml = get_ml_module()
     stride = int(params.get("frame_stride", 1))
-    surr_res = ml_module.forecast(params)
-    solv_res = ml_module.run_solver(params)
-    metrics = ml_module.compute_metrics(
+    surr_res = ml.forecast(params)
+    if "model_name" not in surr_res:
+        surr_res["model_name"] = "mock-v0" if is_mock_mode() else "unet-surrogate-v1"
+
+    solv_res = ml.run_solver(params)
+    metrics = ml.compute_metrics(
         surrogate_frames=surr_res["depth_frames"],
         solver_frames=solv_res["depth_frames"],
         params=params,
@@ -131,5 +158,6 @@ def compare(params: Dict[str, Any]) -> Dict[str, Any]:
         "surrogate": surr_res,
         "solver": solv_res,
         "metrics": metrics,
+        "model_name": surr_res.get("model_name", "mock-v0"),
     }
 
