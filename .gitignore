@@ -40,3 +40,9 @@ artifacts/reports/*.pdf
 .vscode/
 *.swp
 
+# Track specific model artifacts and reports despite the ignore rules above
+!artifacts/models/best.pt
+!artifacts/models/normalizer.json
+!artifacts/data/terrain.npz
+!artifacts/reports/*.json
+

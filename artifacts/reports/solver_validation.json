@@ -1,0 +1,40 @@
+{
+  "A_bucket_no_drain": {
+    "rain_volume_m3": 65536.0,
+    "stored_volume_m3": 65535.9985,
+    "relative_error": 2e-08,
+    "tolerance": 0.01,
+    "pass": true
+  },
+  "B_bucket_with_drain": {
+    "rain_volume_m3": 65536.0,
+    "stored_volume_m3": 54394.8792,
+    "drained_volume_m3": 11141.1208,
+    "pass": true
+  },
+  "C_open_outlet": {
+    "rain_volume_m3": 65536.0,
+    "stored_volume_m3": 65535.9985,
+    "implied_outflow_m3": 0.0015,
+    "pass": true
+  },
+  "D_lake_at_rest": {
+    "min_depth_m": 0.0,
+    "max_change_m": 0.0,
+    "has_nan": false,
+    "pass": true
+  },
+  "E_monotonicity": {
+    "light_stored_m3": 65535.9985,
+    "light_peak_m": 0.01,
+    "heavy_stored_m3": 163840.0269,
+    "heavy_peak_m": 0.025,
+    "pass": true
+  },
+  "F_nonnegativity_no_nan": {
+    "scenarios_tested": 50,
+    "failed": 0,
+    "fail_details": [],
+    "pass": true
+  }
+}
