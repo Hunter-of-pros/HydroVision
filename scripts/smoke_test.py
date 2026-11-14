@@ -47,22 +47,31 @@ def _run_via_testclient() -> List[Tuple[str, str, int, int, str]]:
     ok = resp.status_code == 200 and "presets" in resp.json()
     results.append(("GET", "/presets", 200, resp.status_code, "PASS" if ok else "FAIL"))
 
-    # 5. POST /forecast (expects 501 stub)
+    # 5. POST /forecast (expects 200)
     sample_payload = {
         "rain_intensity_mmhr": 80.0,
         "rain_duration_min": 45.0,
         "rain_shape": "constant",
         "drain_capacity_mmhr": 0.0,
         "horizon_steps": 120,
+        "frame_stride": 10,
     }
     resp = client.post("/forecast", json=sample_payload)
-    ok = resp.status_code == 501
-    results.append(("POST", "/forecast", 501, resp.status_code, "PASS" if ok else "FAIL"))
+    ok = resp.status_code == 200 and "depth_frames" in resp.json()
+    results.append(("POST", "/forecast", 200, resp.status_code, "PASS" if ok else "FAIL"))
 
-    # 6. POST /compare (expects 501 stub)
-    resp = client.post("/compare", json=sample_payload)
-    ok = resp.status_code == 501
-    results.append(("POST", "/compare", 501, resp.status_code, "PASS" if ok else "FAIL"))
+    # 6. POST /compare (expects 200)
+    compare_payload = {
+        "rain_intensity_mmhr": 80.0,
+        "rain_duration_min": 45.0,
+        "rain_shape": "constant",
+        "drain_capacity_mmhr": 0.0,
+        "horizon_steps": 10,  # Fast run for smoke test
+        "frame_stride": 5,
+    }
+    resp = client.post("/compare", json=compare_payload)
+    ok = resp.status_code == 200 and "metrics" in resp.json()
+    results.append(("POST", "/compare", 200, resp.status_code, "PASS" if ok else "FAIL"))
 
     return results
 
@@ -93,22 +102,31 @@ def _run_via_http(base_url: str) -> List[Tuple[str, str, int, int, str]]:
         ok = resp.status_code == 200 and "presets" in resp.json()
         results.append(("GET", "/presets", 200, resp.status_code, "PASS" if ok else "FAIL"))
 
-        # 5. POST /forecast (501 stub)
+        # 5. POST /forecast
         sample_payload = {
             "rain_intensity_mmhr": 80.0,
             "rain_duration_min": 45.0,
             "rain_shape": "constant",
             "drain_capacity_mmhr": 0.0,
             "horizon_steps": 120,
+            "frame_stride": 10,
         }
         resp = client.post("/forecast", json=sample_payload)
-        ok = resp.status_code == 501
-        results.append(("POST", "/forecast", 501, resp.status_code, "PASS" if ok else "FAIL"))
+        ok = resp.status_code == 200 and "depth_frames" in resp.json()
+        results.append(("POST", "/forecast", 200, resp.status_code, "PASS" if ok else "FAIL"))
 
-        # 6. POST /compare (501 stub)
-        resp = client.post("/compare", json=sample_payload)
-        ok = resp.status_code == 501
-        results.append(("POST", "/compare", 501, resp.status_code, "PASS" if ok else "FAIL"))
+        # 6. POST /compare
+        compare_payload = {
+            "rain_intensity_mmhr": 80.0,
+            "rain_duration_min": 45.0,
+            "rain_shape": "constant",
+            "drain_capacity_mmhr": 0.0,
+            "horizon_steps": 10,  # Fast run for smoke test
+            "frame_stride": 5,
+        }
+        resp = client.post("/compare", json=compare_payload)
+        ok = resp.status_code == 200 and "metrics" in resp.json()
+        results.append(("POST", "/compare", 200, resp.status_code, "PASS" if ok else "FAIL"))
 
     return results
 

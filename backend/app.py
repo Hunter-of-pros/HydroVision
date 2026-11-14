@@ -87,17 +87,21 @@ def get_presets() -> Dict[str, Any]:
     response_model=schemas.ForecastResponse,
     summary="Execute neural surrogate flood rollout",
     tags=["Simulation"],
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
 )
-def post_forecast(request: schemas.ForecastRequest) -> Any:
-    """Execute rapid neural surrogate flood depth prediction over the 2-hour horizon.
-
-    Status: 501 Not Implemented (Scheduled for Phase 7: Backend Integration).
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Forecast endpoint stub: Scheduled for Phase 7 (Backend integration with trained surrogate).",
-    )
+def post_forecast(request: schemas.ForecastRequest) -> Dict[str, Any]:
+    """Execute rapid neural surrogate flood depth prediction over the 2-hour horizon."""
+    try:
+        return services.forecast(request.model_dump())
+    except NotImplementedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Forecast simulation failed: {e}",
+        )
 
 
 @app.post(
@@ -105,15 +109,19 @@ def post_forecast(request: schemas.ForecastRequest) -> Any:
     response_model=schemas.CompareResponse,
     summary="Side-by-side surrogate vs numerical solver verification",
     tags=["Simulation"],
-    status_code=status.HTTP_501_NOT_IMPLEMENTED,
 )
-def post_compare(request: schemas.CompareRequest) -> Any:
-    """Run both surrogate and full 2D SWE solver to produce side-by-side comparison and metrics.
-
-    Status: 501 Not Implemented (Scheduled for Phase 7: Backend Integration).
-    """
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Compare endpoint stub: Scheduled for Phase 7 (Backend integration with hydrodynamic solver).",
-    )
+def post_compare(request: schemas.CompareRequest) -> Dict[str, Any]:
+    """Run both surrogate and full 2D SWE solver to produce side-by-side comparison and metrics."""
+    try:
+        return services.compare(request.model_dump())
+    except NotImplementedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail=str(e),
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Comparison simulation failed: {e}",
+        )
 

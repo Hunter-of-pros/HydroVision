@@ -204,8 +204,8 @@ The backend dynamically toggles between mock and real execution using the `HYDRO
 - [ ] **Phase 4: Baseline Neural Surrogate** — 2D U-Net rollout predicting depth increments (`model.py`, `rollout.py`).
 - [ ] **Phase 5: Physics Loss & Stability Training** — Mass conservation loss & multi-step unrolling (`losses.py`, `train.py`).
 - [ ] **Phase 6: Formal Evaluation & Benchmarking** — Metric suite, speedup benchmarks, and diagnostic plots (`metrics.py`, `benchmark.py`).
-- [ ] **Phase 7: Backend Integration** — FastAPI endpoints (`/forecast`, `/compare`) connected to trained surrogate.
-- [ ] **Phase 8: Frontend Map Dashboard** — Interactive Leaflet map, rainfall sliders, and verification player.
+- [x] **Phase 7: Backend Integration** — FastAPI endpoints (`/health`, `/config`, `/terrain`, `/presets`, `/forecast`, `/compare`) with mock/real toggle (`app.py`, `services.py`).
+- [x] **Phase 8: Frontend Map Dashboard** — Interactive canvas flood map, hyetograph sliders, timeline scrubber, and side-by-side solver verification scorecard (`frontend/`).
 - [ ] **Phase 9: Final Integration & Demo Polish** — Full end-to-end rehearsal using `docs/DEMO_SCRIPT.md`.
 
 ---

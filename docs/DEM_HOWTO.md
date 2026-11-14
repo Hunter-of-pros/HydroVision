@@ -20,12 +20,44 @@ This guide details how to acquire, preprocess, and condition digital elevation d
 ---
 
 ## 3. Preprocessing with Rasterio & GDAL
-- Reprojecting source GeoTIFF to local UTM:
-  ```bash
-  # TODO: add GDAL warp command line example
-  ```
-- Resampling to target $64 \times 64$ shape using bilinear or cubic spline interpolation.
-- Handling and replacing NoData pixels using nearest-neighbor interpolation.
+
+### Step 3.1: Reproject and Crop with GDAL
+```bash
+# Reproject source WGS84 GeoTIFF to local UTM (EPSG:32643 for Bangalore) and crop to 2.56 km square
+gdalwarp -t_srs EPSG:32643 \
+  -te 777000 1428000 779560 1430560 \
+  -tr 40.0 40.0 \
+  -r bilinear \
+  raw_dem_wgs84.tif cropped_utm_40m.tif
+
+# Verify dimensions are exactly 64 x 64
+gdalinfo cropped_utm_40m.tif | grep "Size is"
+# Output should report: Size is 64, 64
+```
+
+### Step 3.2: Export to `terrain.npz` with Python & Rasterio
+```python
+import rasterio
+import numpy as np
+
+with rasterio.open("cropped_utm_40m.tif") as src:
+    elevation = src.read(1).astype(np.float64)
+    # Replace NoData values with minimum valid elevation
+    elevation[elevation == src.nodata] = np.nanmin(elevation)
+    bounds = list(src.bounds) # [minx, miny, maxx, maxy]
+
+# Calculate second-order central spatial slopes
+slope_y, slope_x = np.gradient(elevation, 40.0)
+
+np.savez_compressed(
+    "artifacts/data/terrain.npz",
+    elevation=elevation,
+    slope_x=slope_x,
+    slope_y=slope_y,
+    bounds=bounds,
+)
+print(f"Exported terrain.npz: shape={elevation.shape}, elev=[{elevation.min():.1f}m, {elevation.max():.1f}m]")
+```
 
 ---
 

@@ -10,12 +10,16 @@ A step-by-step presentation outline for judging rounds and live demonstrations.
 
 ---
 
-## 2. Interactive Rainfall Slider Walkthrough
+## 2. Interactive Rainfall Slider & Local Hydrograph Walkthrough (90 seconds)
 - Open browser at `http://localhost:5173`.
 - Point out the $2.56\text{ km} \times 2.56\text{ km}$ urban elevation grid and natural drainage channels.
 - Select preset: **Moderate Summer Storm** ($60\text{ mm/hr}$ for 45 min).
-- Drag the **Rainfall Intensity Slider** up to $120\text{ mm/hr}$—highlight sub-second map updates.
+- Drag the **Rainfall Intensity Slider** up to $120\text{ mm/hr}$—highlight sub-50ms instant updates.
 - Scrub the time slider from minute 0 to minute 120 to show water accumulating in low-lying retention basins.
+- **Interactive Probe Feature**: Click on any street intersection on the canvas map to drop a **Probe Pin**.
+  - Show the live $h(t)$ hydrograph curve displaying localized flood arrival time (+18 min) and peak depth (1.42m).
+- **Hazard Assessment Bar**: Point to the real-time breakdown of vehicle stall risk ($h \ge 0.15\text{m}$) and emergency vehicle access cutoff ($h \ge 0.30\text{m}$).
+- Click **Export Snapshot** to show how emergency managers can download instant situation maps.
 
 ---
 
