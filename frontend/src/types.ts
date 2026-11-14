@@ -187,3 +187,12 @@ export interface EvalSummaryData {
 
 
 
+
+export interface RoadHotspot {
+  id: string;
+  name: string;
+  row: number;
+  col: number;
+  type: 'underpass' | 'junction' | 'arterial';
+  landmark: string;
+}

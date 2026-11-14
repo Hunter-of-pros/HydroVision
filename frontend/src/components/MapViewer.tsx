@@ -15,6 +15,7 @@ import {
   Box,
 } from 'lucide-react';
 import { TerrainData } from '../types';
+import { MAJOR_ROAD_HOTSPOTS } from './TrafficAdvisory';
 
 interface MapViewerProps {
   terrain: TerrainData | null;
@@ -43,9 +44,15 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     col: number;
     elevation: number;
     depth: number;
+    hotspot?: {
+      name: string;
+      landmark: string;
+      policeDirective: string;
+    };
   } | null>(null);
 
   const [showGrid, setShowGrid] = useState<boolean>(false);
+  const [showRoadAlerts, setShowRoadAlerts] = useState<boolean>(true);
   const [basemapMode, setBasemapMode] = useState<'streets' | 'satellite' | 'topo'>('streets');
   const [viewAngle, setViewAngle] = useState<'2d' | '3d'>('2d');
   const show3DBuildings = true;
@@ -306,7 +313,178 @@ export const MapViewer: React.FC<MapViewerProps> = ({
       }
     }
 
-    // 5. Active Probe Pin Marker
+    // 5. Municipal Arterial Corridors & Road Barricade Hotspots
+    if (showRoadAlerts) {
+      ctx.save();
+      // Outer Ring Road arterial highway corridor
+      const orrHighway = [
+        { r: 8, c: 26 },
+        { r: 14, c: 28 }, // Marathahalli Bridge Underpass
+        { r: 20, c: 31 },
+        { r: 26, c: 34 }, // Kadubeesanahalli ORR
+        { r: 33, c: 35 }, // Devarabeesanahalli ORR Underpass
+        { r: 38, c: 30 },
+        { r: 42, c: 26 }, // Bellandur Central Junction
+        { r: 48, c: 24 },
+        { r: 52, c: 22 }, // Sarjapur-ORR Connector
+        { r: 58, c: 19 },
+      ];
+
+      // Panathur School & Commuter link corridor
+      const panathurCorridor = [
+        { r: 27, c: 34 },
+        { r: 28, c: 39 },
+        { r: 30, c: 46 }, // Panathur Railway Underpass
+        { r: 32, c: 54 },
+      ];
+
+      const drawCorridor = (pts: { r: number; c: number }[]) => {
+        if (pts.length < 2) return;
+        // Dark road casing
+        ctx.beginPath();
+        ctx.moveTo((pts[0].c + 0.5) * cellW, (pts[0].r + 0.5) * cellH);
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo((pts[i].c + 0.5) * cellW, (pts[i].r + 0.5) * cellH);
+        }
+        ctx.strokeStyle = 'rgba(15, 23, 42, 0.75)';
+        ctx.lineWidth = 7;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        // Asphalt surface
+        ctx.strokeStyle = 'rgba(71, 85, 105, 0.9)';
+        ctx.lineWidth = 4.5;
+        ctx.stroke();
+
+        // Dashed highway lane dividing line
+        ctx.strokeStyle = 'rgba(250, 204, 21, 0.9)';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      };
+
+      drawCorridor(orrHighway);
+      drawCorridor(panathurCorridor);
+
+      // Render the 6 Key Chokepoint Status Badges
+      for (const h of MAJOR_ROAD_HOTSPOTS) {
+        const hx = (h.col + 0.5) * cellW;
+        const hy = (h.row + 0.5) * cellH;
+        const depth = depthFrame?.[h.row]?.[h.col] ?? 0;
+        const depthCm = Math.round(depth * 100);
+
+        if (depth >= 0.30) {
+          // RED ALERT: Traffic Police Barricade Required (h >= 30cm)
+          // Pulsing danger halo
+          ctx.beginPath();
+          ctx.arc(hx, hy, 13, 0, 2 * Math.PI);
+          ctx.fillStyle = 'rgba(239, 68, 68, 0.3)';
+          ctx.fill();
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Solid center pin
+          ctx.beginPath();
+          ctx.arc(hx, hy, 5, 0, 2 * Math.PI);
+          ctx.fillStyle = '#dc2626';
+          ctx.fill();
+
+          // Prominent Barricade Required Pill
+          const badgeText = `🚫 BARRICADE: ${depthCm}cm`;
+          ctx.font = 'bold 9px monospace';
+          const textWidth = ctx.measureText(badgeText).width;
+          const bW = textWidth + 10;
+          const bH = 16;
+          const bX = Math.max(4, Math.min(width - bW - 4, hx - bW / 2));
+          const bY = Math.max(4, hy - 22);
+
+          ctx.fillStyle = 'rgba(159, 18, 57, 0.96)';
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(bX, bY, bW, bH, 4);
+          } else {
+            ctx.rect(bX, bY, bW, bH);
+          }
+          ctx.fill();
+          ctx.strokeStyle = '#fecdd3';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(badgeText, bX + 5, bY + bH / 2);
+        } else if (depth >= 0.15) {
+          // AMBER HAZARD: Curb Submerged / School Bus Alert (15cm <= h < 30cm)
+          ctx.beginPath();
+          ctx.arc(hx, hy, 10, 0, 2 * Math.PI);
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+          ctx.fill();
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(hx, hy, 4.5, 0, 2 * Math.PI);
+          ctx.fillStyle = '#f59e0b';
+          ctx.fill();
+
+          const badgeText = `⚠️ HAZARD: ${depthCm}cm`;
+          ctx.font = 'bold 9px monospace';
+          const textWidth = ctx.measureText(badgeText).width;
+          const bW = textWidth + 8;
+          const bH = 15;
+          const bX = Math.max(4, Math.min(width - bW - 4, hx - bW / 2));
+          const bY = Math.max(4, hy - 20);
+
+          ctx.fillStyle = 'rgba(120, 53, 15, 0.92)';
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(bX, bY, bW, bH, 4);
+          } else {
+            ctx.rect(bX, bY, bW, bH);
+          }
+          ctx.fill();
+          ctx.strokeStyle = '#fde68a';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(badgeText, bX + 4, bY + bH / 2);
+        } else if (depth >= 0.05) {
+          // CYAN CAUTION: Waterlogged
+          ctx.beginPath();
+          ctx.arc(hx, hy, 7, 0, 2 * Math.PI);
+          ctx.fillStyle = 'rgba(6, 182, 212, 0.25)';
+          ctx.fill();
+          ctx.strokeStyle = '#06b6d4';
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.arc(hx, hy, 3.5, 0, 2 * Math.PI);
+          ctx.fillStyle = '#06b6d4';
+          ctx.fill();
+        } else {
+          // PASSABLE: Normal Passable waypoint
+          ctx.beginPath();
+          ctx.arc(hx, hy, 3.5, 0, 2 * Math.PI);
+          ctx.fillStyle = '#10b981';
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+
+    // 6. Active Probe Pin Marker
     if (selectedProbeCell) {
       const pinX = (selectedProbeCell.col + 0.5) * cellW;
       const pinY = (selectedProbeCell.row + 0.5) * cellH;
@@ -334,6 +512,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     minElev,
     maxElev,
     showGrid,
+    showRoadAlerts,
     basemapMode,
     viewAngle,
     show3DBuildings,
@@ -374,7 +553,28 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     if (row >= 0 && row < rows && col >= 0 && col < cols) {
       const elevation = terrain.elevation[row]?.[col] ?? 0;
       const depth = depthFrame?.[row]?.[col] ?? 0;
-      setHoverCell({ row, col, elevation, depth });
+
+      const matchedHotspot = MAJOR_ROAD_HOTSPOTS.find(
+        (h) => Math.abs(h.row - row) <= 1 && Math.abs(h.col - col) <= 1
+      );
+      let hotspotInfo = undefined;
+      if (matchedHotspot) {
+        let policeDirective = 'Passable for all traffic';
+        if (depth >= 0.3) {
+          policeDirective = '🚨 Deploy physical barricades & divert traffic';
+        } else if (depth >= 0.15) {
+          policeDirective = '⚠️ Sedans stall; divert two-wheelers & small cars';
+        } else if (depth >= 0.05) {
+          policeDirective = 'Slow traffic; expect delays';
+        }
+        hotspotInfo = {
+          name: matchedHotspot.name,
+          landmark: matchedHotspot.landmark,
+          policeDirective,
+        };
+      }
+
+      setHoverCell({ row, col, elevation, depth, hotspot: hotspotInfo });
     }
   };
 
@@ -392,6 +592,21 @@ export const MapViewer: React.FC<MapViewerProps> = ({
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    // Check if user clicked directly on or near a major road hotspot
+    const cellW = rect.width / cols;
+    const cellH = rect.height / rows;
+    const clickedHotspot = MAJOR_ROAD_HOTSPOTS.find((h) => {
+      const hx = (h.col + 0.5) * cellW;
+      const hy = (h.row + 0.5) * cellH;
+      return Math.hypot(x - hx, y - hy) <= 24;
+    });
+
+    if (clickedHotspot) {
+      const elevation = terrain.elevation[clickedHotspot.row]?.[clickedHotspot.col] ?? 0;
+      onSelectProbeCell({ row: clickedHotspot.row, col: clickedHotspot.col, elevation });
+      return;
+    }
 
     const col = Math.floor((x / rect.width) * cols);
     const row = Math.floor((y / rect.height) * rows);
@@ -554,6 +769,20 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             <span className="hidden sm:inline">Ground Level</span>
           </button>
 
+          {/* Municipal Road Alerts & Barricades Toggle */}
+          <button
+            onClick={() => setShowRoadAlerts(!showRoadAlerts)}
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition shadow-sm ${
+              showRoadAlerts
+                ? 'bg-rose-600/20 border-rose-500/40 text-rose-300 hover:bg-rose-600/30'
+                : 'bg-slate-950/80 border-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+            title="Toggle Municipal Road Barricades & Traffic Police Alerts"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden sm:inline">Road Alerts</span>
+          </button>
+
           <button
             onClick={() => setShowGrid(!showGrid)}
             className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 transition ${
@@ -659,15 +888,38 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
         {/* Live Hover Inspector Overlay */}
         {hoverCell && (
-          <div className="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-xl px-3 py-2 text-xs shadow-2xl font-mono flex flex-col gap-0.5 pointer-events-none z-10">
+          <div className="absolute bottom-3 left-3 bg-slate-900/95 backdrop-blur border border-slate-700/80 rounded-xl px-3 py-2 text-xs shadow-2xl font-mono flex flex-col gap-1 pointer-events-none z-10 max-w-sm">
+            {hoverCell.hotspot && (
+              <div className="bg-rose-950/70 border border-rose-500/50 rounded-lg p-1.5 mb-0.5 flex flex-col gap-0.5 shadow-sm">
+                <div className="flex items-center gap-1.5 text-rose-300 font-bold text-[11px]">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                  <span>{hoverCell.hotspot.name}</span>
+                </div>
+                <div className="text-[10px] text-slate-300 font-sans">
+                  {hoverCell.hotspot.policeDirective}
+                </div>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-4 text-slate-400 text-[10px] border-b border-slate-800 pb-1">
               <span>
                 Cell [{hoverCell.row}, {hoverCell.col}] •{' '}
                 {getCellLatLon(hoverCell.row, hoverCell.col).lat.toFixed(4)}°N,{' '}
                 {getCellLatLon(hoverCell.row, hoverCell.col).lon.toFixed(4)}°E
               </span>
-              <span className={hoverCell.depth >= 0.05 ? 'text-cyan-400 font-bold' : 'text-slate-500'}>
-                {hoverCell.depth >= 0.05 ? 'INUNDATED' : 'DRY'}
+              <span
+                className={
+                  hoverCell.depth >= 0.3
+                    ? 'text-rose-400 font-bold'
+                    : hoverCell.depth >= 0.05
+                    ? 'text-cyan-400 font-bold'
+                    : 'text-slate-500'
+                }
+              >
+                {hoverCell.depth >= 0.3
+                  ? 'BARRED (SUBMERGED)'
+                  : hoverCell.depth >= 0.05
+                  ? 'INUNDATED'
+                  : 'DRY'}
               </span>
             </div>
             <div className="flex justify-between gap-4">
@@ -676,7 +928,17 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             </div>
             <div className="flex justify-between gap-4">
               <span className="text-slate-400">Flood Depth (h):</span>
-              <span className={`font-bold ${hoverCell.depth >= 0.05 ? 'text-cyan-300' : 'text-slate-400'}`}>
+              <span
+                className={`font-bold ${
+                  hoverCell.depth >= 0.3
+                    ? 'text-rose-400'
+                    : hoverCell.depth >= 0.15
+                    ? 'text-amber-400'
+                    : hoverCell.depth >= 0.05
+                    ? 'text-cyan-300'
+                    : 'text-slate-400'
+                }`}
+              >
                 {hoverCell.depth.toFixed(3)} m ({(hoverCell.depth * 100).toFixed(0)} cm)
               </span>
             </div>

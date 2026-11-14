@@ -9,6 +9,7 @@ import { RunComparisonView } from './components/RunComparisonView';
 import { RunHistoryDrawer } from './components/RunHistoryDrawer';
 import { PointProbe } from './components/PointProbe';
 import { HazardMetrics } from './components/HazardMetrics';
+import { TrafficAdvisory } from './components/TrafficAdvisory';
 import { EvaluationTab } from './components/EvaluationTab';
 import {
   fetchHealth,
@@ -461,6 +462,14 @@ export const App: React.FC = () => {
             <HazardMetrics
               depthFrame={activeDepthFrame}
               thresholds={config?.hazard_thresholds}
+            />
+
+            {/* Municipal Traffic Police & School Safety Road Advisory */}
+            <TrafficAdvisory
+              depthFrame={activeDepthFrame}
+              currentMinute={currentFrame}
+              terrain={terrain}
+              onSelectHotspot={(cell) => setSelectedProbeCell(cell)}
             />
 
             {/* Scenario Comparison View, Solver Verification View, or Main Simulation View */}
