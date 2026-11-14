@@ -633,17 +633,17 @@ export const MapViewer: React.FC<MapViewerProps> = ({
   const googleMapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${activeStreetCell.lat.toFixed(6)},${activeStreetCell.lon.toFixed(6)}`;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3 relative overflow-hidden">
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3 relative overflow-hidden text-slate-900">
       {/* Top Map Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span
             className={`w-2.5 h-2.5 rounded-full ${
-              isSolverComparison ? 'bg-amber-400' : 'bg-brand-400 animate-pulse'
+              isSolverComparison ? 'bg-amber-500' : 'bg-brand-500 animate-pulse'
             }`}
           />
-          <h3 className="text-sm font-bold text-white tracking-wide">{title}</h3>
-          <span className="text-[10px] text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
+          <h3 className="text-sm font-bold text-slate-900 tracking-wide">{title}</h3>
+          <span className="text-[10px] text-slate-500 font-mono px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
             {terrain?.dx_m ?? 60.9}m/cell • Marathahalli-Bellandur ORR
           </span>
         </div>
@@ -651,13 +651,13 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         {/* Basemap Switcher & Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* 2D Plan vs 3D Oblique Perspective Toggle (matching reference image) */}
-          <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
             <button
               onClick={() => setViewAngle('2d')}
               className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
                 viewAngle === '2d'
-                  ? 'bg-slate-700 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="2D Top-Down Plan View"
             >
@@ -668,7 +668,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
               className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
                 viewAngle === '3d'
                   ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="3D Oblique Urban Street Perspective"
             >
@@ -678,13 +678,13 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           </div>
 
           {/* Basemap Toggle Group (Streets, Satellite, Topo) */}
-          <div className="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-xs">
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
             <button
               onClick={() => setBasemapMode('streets')}
               className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
                 basemapMode === 'streets'
                   ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Real Esri / OSM Labeled Street Network (No API key needed)"
             >
@@ -696,7 +696,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
               className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
                 basemapMode === 'satellite'
                   ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Real Satellite Aerial Photography"
             >
@@ -707,7 +707,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
               className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 ${
                 basemapMode === 'topo'
                   ? 'bg-brand-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
               title="Hillshaded Digital Elevation Topography"
             >
@@ -718,10 +718,10 @@ export const MapViewer: React.FC<MapViewerProps> = ({
           {/* Real Street View Simulator Modal Launcher */}
           <button
             onClick={() => setIsStreetViewOpen(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-cyan-600/20 border border-cyan-500/40 hover:bg-cyan-600/30 text-cyan-300 text-xs font-semibold flex items-center gap-1.5 transition shadow-sm"
+            className="px-2.5 py-1.5 rounded-lg bg-cyan-50 border border-cyan-200 hover:bg-cyan-100 text-cyan-800 text-xs font-semibold flex items-center gap-1.5 transition shadow-xs"
             title="Open Street-Level Flood Simulator"
           >
-            <Camera className="w-3.5 h-3.5 text-cyan-400" />
+            <Camera className="w-3.5 h-3.5 text-cyan-600" />
             <span className="hidden sm:inline">Ground Level</span>
           </button>
 
@@ -730,12 +730,12 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             onClick={() => setShowFlowVectors(!showFlowVectors)}
             className={`px-2 py-1 rounded-md transition font-medium flex items-center gap-1 text-xs ${
               showFlowVectors
-                ? 'bg-cyan-600/20 text-cyan-300 border border-cyan-500/40'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-cyan-50 text-cyan-800 border border-cyan-200'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
             title="Toggle Indicative Flow Direction (Water Surface Gradient)"
           >
-            <Navigation className="w-3 h-3 rotate-45 text-cyan-400" />
+            <Navigation className="w-3 h-3 rotate-45 text-cyan-600" />
             <span className="hidden sm:inline">Flow Vectors</span>
           </button>
 
@@ -743,8 +743,8 @@ export const MapViewer: React.FC<MapViewerProps> = ({
             onClick={() => setShowGrid(!showGrid)}
             className={`p-1.5 rounded-lg border text-xs flex items-center gap-1 transition ${
               showGrid
-                ? 'bg-slate-700 text-white border-slate-600'
-                : 'bg-slate-800/80 text-slate-400 border-slate-800 hover:text-slate-200'
+                ? 'bg-slate-200 text-slate-900 border-slate-300'
+                : 'bg-slate-100 text-slate-600 border-slate-200 hover:text-slate-900 hover:bg-slate-200'
             }`}
             title="Toggle grid mesh overlay"
           >
@@ -753,7 +753,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
           <button
             onClick={handleDownloadSnapshot}
-            className="p-1.5 rounded-lg bg-slate-800/80 border border-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs flex items-center gap-1 transition"
+            className="p-1.5 rounded-lg bg-slate-100 border border-slate-200 hover:bg-slate-200 text-slate-600 hover:text-slate-900 text-xs flex items-center gap-1 transition"
             title="Export high-res snapshot PNG"
           >
             <Download className="w-3.5 h-3.5" />
@@ -763,7 +763,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
       {/* Map Perspective View Container (Supports 3D Oblique Tilt) */}
       <div
-        className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center transition-all duration-500"
+        className="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center transition-all duration-500"
         style={{
           perspective: viewAngle === '3d' ? '1200px' : 'none',
         }}
@@ -777,13 +777,13 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 : 'none',
             boxShadow:
               viewAngle === '3d'
-                ? '0 30px 60px -12px rgba(0, 0, 0, 0.9), 0 18px 36px -18px rgba(0, 0, 0, 0.95)'
+                ? '0 20px 40px -10px rgba(0, 0, 0, 0.2), 0 10px 20px -10px rgba(0, 0, 0, 0.15)'
                 : 'none',
           }}
         >
           {!terrain ? (
-            <div className="w-full h-full bg-slate-950 flex flex-col items-center justify-center gap-3 animate-pulse p-6 text-slate-500">
-              <div className="w-10 h-10 rounded-full border-2 border-brand-500/40 border-t-brand-400 animate-spin" />
+            <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center gap-3 animate-pulse p-6 text-slate-500">
+              <div className="w-10 h-10 rounded-full border-2 border-brand-500/40 border-t-brand-600 animate-spin" />
               <span className="text-xs font-mono">Loading DEM terrain raster...</span>
             </div>
           ) : (
@@ -801,32 +801,32 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
         {/* Loading Overlay when rolling out inference */}
         {isLoading && (
-          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none z-20">
-            <div className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-slate-900/90 border border-brand-500/40 text-brand-300 text-xs font-semibold shadow-2xl">
-              <Loader2 className="w-4 h-4 animate-spin text-brand-400" />
+          <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none z-20">
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/95 border border-brand-200 text-brand-700 text-xs font-semibold shadow-xl">
+              <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
               <span>Simulating surrogate...</span>
             </div>
           </div>
         )}
 
         {/* North Arrow Indicator */}
-        <div className="absolute top-3 right-3 p-1.5 rounded-xl bg-slate-900/80 backdrop-blur border border-slate-700/60 shadow flex flex-col items-center pointer-events-none z-10">
-          <Compass className="w-4 h-4 text-cyan-400" />
-          <span className="text-[9px] font-bold text-slate-300 font-mono">N</span>
+        <div className="absolute top-3 right-3 p-1.5 rounded-xl bg-white/90 backdrop-blur border border-slate-200 shadow-sm flex flex-col items-center pointer-events-none z-10">
+          <Compass className="w-4 h-4 text-cyan-600" />
+          <span className="text-[9px] font-bold text-slate-700 font-mono">N</span>
         </div>
 
         {/* Perspective Badge */}
         {viewAngle === '3d' && (
-          <div className="absolute top-3 right-12 bg-slate-900/85 backdrop-blur border border-brand-500/40 rounded-lg px-2.5 py-1 text-[10px] font-semibold text-brand-300 font-mono shadow pointer-events-none z-10 flex items-center gap-1.5">
-            <Box className="w-3 h-3 text-brand-400" />
+          <div className="absolute top-3 right-12 bg-white/90 backdrop-blur border border-brand-200 rounded-lg px-2.5 py-1 text-[10px] font-semibold text-brand-700 font-mono shadow-sm pointer-events-none z-10 flex items-center gap-1.5">
+            <Box className="w-3 h-3 text-brand-600" />
             <span>3D Oblique Urban View</span>
           </div>
         )}
 
         {/* Indicative Flow Direction Overlay Pill */}
         {showFlowVectors && (
-          <div className="absolute top-3 right-3 bg-slate-900/85 backdrop-blur border border-slate-700/60 rounded-lg px-2 py-0.5 text-[10px] text-cyan-300 font-mono shadow pointer-events-none z-10 flex items-center gap-1">
-            <Navigation className="w-2.5 h-2.5 rotate-45 text-cyan-400" />
+          <div className="absolute top-3 right-3 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-2 py-0.5 text-[10px] text-cyan-800 font-mono shadow-sm pointer-events-none z-10 flex items-center gap-1">
+            <Navigation className="w-2.5 h-2.5 rotate-45 text-cyan-600" />
             <span>Indicative flow direction</span>
           </div>
         )}
@@ -835,45 +835,45 @@ export const MapViewer: React.FC<MapViewerProps> = ({
         {selectedProbeCell ? (
           <div
             onClick={() => setIsStreetViewOpen(true)}
-            className="absolute top-3 left-3 bg-cyan-950/90 backdrop-blur border border-cyan-500/50 rounded-lg px-2.5 py-1 text-[11px] text-cyan-300 font-mono shadow flex items-center gap-1.5 z-10 cursor-pointer hover:bg-cyan-900 transition"
+            className="absolute top-3 left-3 bg-white/95 backdrop-blur border border-cyan-300 rounded-lg px-2.5 py-1 text-[11px] text-cyan-800 font-mono shadow-md flex items-center gap-1.5 z-10 cursor-pointer hover:bg-cyan-50 transition"
             title="Click to view Street View at probe"
           >
-            <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+            <MapPin className="w-3.5 h-3.5 text-cyan-600" />
             <span>
               Probe: [{selectedProbeCell.row}, {selectedProbeCell.col}] • {activeStreetCell.lat.toFixed(4)}°N
             </span>
-            <Camera className="w-3 h-3 text-cyan-300 ml-1" />
+            <Camera className="w-3 h-3 text-cyan-600 ml-1" />
           </div>
         ) : (
-          <div className="absolute top-3 left-3 bg-slate-900/85 backdrop-blur border border-slate-700/60 rounded-lg px-2 py-0.5 text-[10px] text-slate-300 font-mono shadow pointer-events-none z-10">
+          <div className="absolute top-3 left-3 bg-white/90 backdrop-blur border border-slate-200 rounded-lg px-2 py-0.5 text-[10px] text-slate-600 font-mono shadow-sm pointer-events-none z-10">
             🗺️ Click street to inspect water depth
           </div>
         )}
 
         {/* Live Hover Inspector Overlay */}
         {hoverCell && (
-          <div className="absolute bottom-3 left-3 bg-slate-900/90 backdrop-blur border border-slate-700/80 rounded-xl px-3 py-2 text-xs shadow-2xl font-mono flex flex-col gap-0.5 pointer-events-none z-10">
-            <div className="flex items-center justify-between gap-4 text-slate-400 text-[10px] border-b border-slate-800 pb-1">
+          <div className="absolute bottom-3 left-3 bg-white/95 backdrop-blur border border-slate-200 rounded-xl px-3 py-2 text-xs shadow-xl font-mono flex flex-col gap-0.5 pointer-events-none z-10 text-slate-800">
+            <div className="flex items-center justify-between gap-4 text-slate-500 text-[10px] border-b border-slate-200 pb-1">
               <span>
                 Cell [{hoverCell.row}, {hoverCell.col}] •{' '}
                 {getCellLatLon(hoverCell.row, hoverCell.col).lat.toFixed(4)}°N,{' '}
                 {getCellLatLon(hoverCell.row, hoverCell.col).lon.toFixed(4)}°E
               </span>
-              <span className={hoverCell.depth >= 0.05 ? 'text-cyan-400 font-bold' : 'text-slate-500'}>
+              <span className={hoverCell.depth >= 0.05 ? 'text-cyan-700 font-bold' : 'text-slate-400'}>
                 {hoverCell.depth >= 0.05 ? 'INUNDATED' : 'DRY'}
               </span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-slate-400">Ground Elev (z):</span>
-              <span className="font-bold text-slate-200">{hoverCell.elevation.toFixed(2)} m</span>
+              <span className="text-slate-500">Ground Elev (z):</span>
+              <span className="font-bold text-slate-900">{hoverCell.elevation.toFixed(2)} m</span>
             </div>
             <div className="flex justify-between gap-4">
-              <span className="text-slate-400">Flood Depth (h):</span>
-              <span className={`font-bold ${hoverCell.depth >= 0.05 ? 'text-cyan-300' : 'text-slate-400'}`}>
+              <span className="text-slate-500">Flood Depth (h):</span>
+              <span className={`font-bold ${hoverCell.depth >= 0.05 ? 'text-cyan-700' : 'text-slate-500'}`}>
                 {hoverCell.depth.toFixed(3)} m ({(hoverCell.depth * 100).toFixed(0)} cm)
               </span>
             </div>
-            <div className="flex justify-between gap-4 text-[10px] text-slate-500 pt-0.5">
+            <div className="flex justify-between gap-4 text-[10px] text-slate-400 pt-0.5">
               <span>Water Surface (z+h):</span>
               <span>{(hoverCell.elevation + hoverCell.depth).toFixed(2)} m</span>
             </div>
@@ -883,13 +883,13 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
       {/* Colormap Legend Scale (Square-Root Non-Linear Perceptual Ramp) */}
       <div className="flex flex-col gap-1.5 pt-1">
-        <div className="h-2.5 w-full rounded-full overflow-hidden flex shadow-inner">
-          <div className="w-[8%] bg-slate-800" title="Dry pavement (< 0.01m / 1cm)" />
+        <div className="h-2.5 w-full rounded-full overflow-hidden flex shadow-inner border border-slate-200">
+          <div className="w-[8%] bg-slate-200" title="Dry pavement (< 0.01m / 1cm)" />
           <div className="w-[22%] bg-gradient-to-r from-sky-400 to-cyan-500" title="1cm - 15cm (Thin sheet flow)" />
           <div className="w-[35%] bg-gradient-to-r from-cyan-500 to-blue-600" title="15cm - 60cm (Street curb overflow)" />
           <div className="w-[35%] bg-gradient-to-r from-blue-600 to-indigo-950" title="60cm - 2.0m+ (Deep deluge)" />
         </div>
-        <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+        <div className="flex justify-between text-[10px] text-slate-500 font-mono">
           <span>Dry (&lt;1cm)</span>
           <span>5cm (Sheet flow)</span>
           <span>15cm (Curb breached)</span>
@@ -900,17 +900,17 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
       {/* Real Street View & Inundation Simulation Modal */}
       {isStreetViewOpen && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-2xl w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full p-5 shadow-2xl flex flex-col gap-4 max-h-[90vh] overflow-y-auto text-slate-900">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div className="flex items-center gap-2">
-                <Camera className="w-5 h-5 text-cyan-400" />
+                <Camera className="w-5 h-5 text-cyan-600" />
                 <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     Real Google Street View &amp; Flood Level Simulator
                   </h3>
-                  <p className="text-xs text-slate-400 font-mono">
+                  <p className="text-xs text-slate-500 font-mono">
                     Marathahalli–Bellandur Outer Ring Road • Cell [{activeStreetCell.row},{' '}
                     {activeStreetCell.col}]
                   </p>
@@ -918,7 +918,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
               </div>
               <button
                 onClick={() => setIsStreetViewOpen(false)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -926,44 +926,44 @@ export const MapViewer: React.FC<MapViewerProps> = ({
 
             {/* GPS Location & Live Depth Diagnostics */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-mono">Latitude</span>
-                <p className="text-sm font-bold text-white font-mono">{activeStreetCell.lat.toFixed(5)}° N</p>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">Latitude</span>
+                <p className="text-sm font-bold text-slate-900 font-mono">{activeStreetCell.lat.toFixed(5)}° N</p>
               </div>
-              <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-mono">Longitude</span>
-                <p className="text-sm font-bold text-white font-mono">{activeStreetCell.lon.toFixed(5)}° E</p>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">Longitude</span>
+                <p className="text-sm font-bold text-slate-900 font-mono">{activeStreetCell.lon.toFixed(5)}° E</p>
               </div>
-              <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-mono">Ground Elevation</span>
-                <p className="text-sm font-bold text-cyan-300 font-mono">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">Ground Elevation</span>
+                <p className="text-sm font-bold text-cyan-700 font-mono">
                   {activeStreetCell.elevation.toFixed(2)} m
                 </p>
               </div>
-              <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
-                <span className="text-[10px] text-slate-400 uppercase font-mono">Simulation Depth</span>
-                <p className="text-sm font-bold text-cyan-400 font-mono">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-500 uppercase font-mono">Simulation Depth</span>
+                <p className="text-sm font-bold text-cyan-700 font-mono">
                   {activeStreetCell.depth.toFixed(3)} m ({(activeStreetCell.depth * 100).toFixed(0)} cm)
                 </p>
               </div>
             </div>
 
             {/* Street-Level Water Inundation Simulator Canvas / Graphic */}
-            <div className="bg-slate-950 rounded-xl border border-slate-800 p-4 flex flex-col gap-3 relative overflow-hidden">
-              <div className="flex items-center justify-between text-xs text-slate-300 font-semibold border-b border-slate-800 pb-2">
-                <span className="flex items-center gap-1.5 text-cyan-400">
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col gap-3 relative overflow-hidden">
+              <div className="flex items-center justify-between text-xs text-slate-700 font-semibold border-b border-slate-200 pb-2">
+                <span className="flex items-center gap-1.5 text-cyan-700">
                   <Waves className="w-4 h-4" />
                   Street Cross-Section Simulation (Water Level vs. Vehicles)
                 </span>
                 <span
                   className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                     activeStreetCell.depth >= 0.3
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
                       : activeStreetCell.depth >= 0.15
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200'
                       : activeStreetCell.depth >= 0.05
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                   }`}
                 >
                   {activeStreetCell.depth >= 0.6
@@ -979,26 +979,26 @@ export const MapViewer: React.FC<MapViewerProps> = ({
               </div>
 
               {/* Dynamic Street Cross-Section SVG */}
-              <div className="relative h-44 w-full bg-slate-900/90 rounded-lg overflow-hidden border border-slate-800 flex items-end">
+              <div className="relative h-44 w-full bg-slate-100 rounded-lg overflow-hidden border border-slate-200 flex items-end">
                 {/* Sky / Urban Backdrop */}
-                <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-slate-900 to-slate-800" />
+                <div className="absolute inset-0 bg-gradient-to-b from-sky-100 via-sky-50 to-slate-100" />
 
                 {/* City skyline silhouettes */}
-                <svg className="absolute inset-0 w-full h-full opacity-15" preserveAspectRatio="none">
-                  <rect x="5%" y="45%" width="12%" height="55%" fill="#38bdf8" />
-                  <rect x="20%" y="30%" width="15%" height="70%" fill="#38bdf8" />
-                  <rect x="40%" y="50%" width="10%" height="50%" fill="#38bdf8" />
-                  <rect x="55%" y="35%" width="16%" height="65%" fill="#38bdf8" />
-                  <rect x="75%" y="40%" width="14%" height="60%" fill="#38bdf8" />
+                <svg className="absolute inset-0 w-full h-full opacity-20" preserveAspectRatio="none">
+                  <rect x="5%" y="45%" width="12%" height="55%" fill="#0284c7" />
+                  <rect x="20%" y="30%" width="15%" height="70%" fill="#0284c7" />
+                  <rect x="40%" y="50%" width="10%" height="50%" fill="#0284c7" />
+                  <rect x="55%" y="35%" width="16%" height="65%" fill="#0284c7" />
+                  <rect x="75%" y="40%" width="14%" height="60%" fill="#0284c7" />
                 </svg>
 
                 {/* Sidewalk & Concrete Curb (Left side, 15cm high) */}
-                <div className="absolute bottom-0 left-0 w-28 h-10 bg-slate-700 border-t-2 border-r-2 border-slate-500 z-10 flex items-center justify-center">
-                  <span className="text-[9px] text-slate-300 font-mono font-bold">Sidewalk (15cm)</span>
+                <div className="absolute bottom-0 left-0 w-28 h-10 bg-slate-300 border-t-2 border-r-2 border-slate-400 z-10 flex items-center justify-center">
+                  <span className="text-[9px] text-slate-700 font-mono font-bold">Sidewalk (15cm)</span>
                 </div>
 
                 {/* Asphalt Road Surface */}
-                <div className="absolute bottom-0 left-28 right-0 h-6 bg-slate-950 border-t-2 border-slate-600 flex items-center justify-around z-10">
+                <div className="absolute bottom-0 left-28 right-0 h-6 bg-slate-800 border-t-2 border-slate-600 flex items-center justify-around z-10">
                   <div className="w-8 h-1 bg-amber-400" />
                   <div className="w-8 h-1 bg-amber-400" />
                   <div className="w-8 h-1 bg-amber-400" />
@@ -1014,11 +1014,11 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                       fill="#0284c7"
                     />
                     {/* Windows */}
-                    <path d="M 57 28 L 80 28 L 80 44 L 38 44 Z" fill="#bae6fd" opacity="0.8" />
-                    <path d="M 85 28 L 104 28 L 120 44 L 85 44 Z" fill="#bae6fd" opacity="0.8" />
+                    <path d="M 57 28 L 80 28 L 80 44 L 38 44 Z" fill="#e0f2fe" opacity="0.9" />
+                    <path d="M 85 28 L 104 28 L 120 44 L 85 44 Z" fill="#e0f2fe" opacity="0.9" />
                     {/* Wheels */}
-                    <circle cx="40" cy="58" r="11" fill="#0f172a" stroke="#64748b" strokeWidth="2" />
-                    <circle cx="126" cy="58" r="11" fill="#0f172a" stroke="#64748b" strokeWidth="2" />
+                    <circle cx="40" cy="58" r="11" fill="#1e293b" stroke="#64748b" strokeWidth="2" />
+                    <circle cx="126" cy="58" r="11" fill="#1e293b" stroke="#64748b" strokeWidth="2" />
                     <circle cx="40" cy="58" r="4" fill="#94a3b8" />
                     <circle cx="126" cy="58" r="4" fill="#94a3b8" />
                   </svg>
@@ -1027,7 +1027,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 {/* Dynamic Flood Water Layer */}
                 {activeStreetCell.depth > 0 && (
                   <div
-                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-700/80 via-cyan-500/70 to-cyan-300/60 z-20 transition-all duration-300 border-t-2 border-cyan-200"
+                    className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-blue-600/80 via-cyan-500/70 to-cyan-300/60 z-20 transition-all duration-300 border-t-2 border-cyan-200"
                     style={{
                       height: `${Math.min(
                         140,
@@ -1036,7 +1036,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                     }}
                   >
                     {/* Water Surface Ripples */}
-                    <div className="w-full h-1 bg-white/40 animate-pulse" />
+                    <div className="w-full h-1 bg-white/50 animate-pulse" />
                     <div className="px-3 pt-1 flex justify-between items-center text-[10px] font-mono font-bold text-white drop-shadow">
                       <span>Simulated Water: {(activeStreetCell.depth * 100).toFixed(0)} cm</span>
                       <span>h = {activeStreetCell.depth.toFixed(3)} m</span>
@@ -1045,28 +1045,28 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 )}
 
                 {/* Water Height Reference Markers */}
-                <div className="absolute right-2 bottom-6 top-4 flex flex-col justify-between text-[9px] font-mono text-slate-400 border-l border-dashed border-slate-600 pl-1 z-30 pointer-events-none">
-                  <span className="text-rose-400">100cm (Roof)</span>
-                  <span className="text-orange-400">60cm (Intake)</span>
-                  <span className="text-amber-400">30cm (Exhaust)</span>
-                  <span className="text-cyan-400">15cm (Curb)</span>
+                <div className="absolute right-2 bottom-6 top-4 flex flex-col justify-between text-[9px] font-mono text-slate-500 border-l border-dashed border-slate-300 pl-1 z-30 pointer-events-none">
+                  <span className="text-rose-600 font-bold">100cm (Roof)</span>
+                  <span className="text-amber-600 font-bold">60cm (Intake)</span>
+                  <span className="text-amber-700 font-bold">30cm (Exhaust)</span>
+                  <span className="text-cyan-700 font-bold">15cm (Curb)</span>
                   <span className="text-slate-500">0cm (Road)</span>
                 </div>
               </div>
 
               {/* Physical Hazard Guidance Message */}
-              <div className="text-xs text-slate-300 flex items-start gap-2 bg-slate-900/80 p-2.5 rounded-lg border border-slate-800">
+              <div className="text-xs text-slate-700 flex items-start gap-2 bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
                 <AlertTriangle
                   className={`w-4 h-4 shrink-0 mt-0.5 ${
                     activeStreetCell.depth >= 0.3
-                      ? 'text-rose-400'
+                      ? 'text-rose-600'
                       : activeStreetCell.depth >= 0.15
-                      ? 'text-amber-400'
-                      : 'text-cyan-400'
+                      ? 'text-amber-600'
+                      : 'text-cyan-600'
                   }`}
                 />
                 <div>
-                  <span className="font-bold text-white">
+                  <span className="font-bold text-slate-900">
                     {activeStreetCell.depth >= 0.3
                       ? 'Severe Road Inundation — Structural Danger: '
                       : activeStreetCell.depth >= 0.15
@@ -1090,7 +1090,7 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 href={googleStreetViewUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs shadow-lg shadow-cyan-600/20 transition"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs shadow-md shadow-cyan-600/20 transition"
               >
                 <Camera className="w-4 h-4" />
                 <span>Open in Google Street View (360° Panorama)</span>
@@ -1101,9 +1101,9 @@ export const MapViewer: React.FC<MapViewerProps> = ({
                 href={googleMapsSearchUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 transition"
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs border border-slate-200 transition"
               >
-                <Navigation className="w-4 h-4 text-emerald-400" />
+                <Navigation className="w-4 h-4 text-emerald-600" />
                 <span>View on Google Maps</span>
                 <ExternalLink className="w-3.5 h-3.5 ml-1" />
               </a>

@@ -398,16 +398,16 @@ export const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Persistent Amber Banner: Offline Fallback OR Mock Engine */}
       {isOfflineFallback ? (
-        <div className="bg-amber-500/20 border-b border-amber-500/40 text-amber-200 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="bg-amber-100 border-b border-amber-300 text-amber-950 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
           <span>OFFLINE FALLBACK: saved example, not a live forecast</span>
         </div>
       ) : isMock ? (
-        <div className="bg-amber-500/15 border-b border-amber-500/30 text-amber-300 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2 text-xs font-semibold flex items-center justify-center gap-2 tracking-wide uppercase shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
           <span>MOCK ENGINE: simulated data, not real model results</span>
         </div>
       ) : null}
@@ -426,14 +426,14 @@ export const App: React.FC = () => {
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col gap-6">
         {/* Error Notification Banner with Retry and Reset options */}
         {errorMessage && (
-          <div className="bg-rose-950/90 border border-rose-500/50 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-rose-200 text-xs shadow-xl animate-in fade-in">
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 text-rose-800 text-xs shadow-md animate-in fade-in">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+              <div className="p-2 rounded-xl bg-rose-100 text-rose-600 border border-rose-200">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
               </div>
               <div className="flex flex-col">
-                <span className="font-bold text-rose-300">Simulation Request Error</span>
-                <span className="text-slate-300 mt-0.5">{errorMessage}</span>
+                <span className="font-bold text-rose-900">Simulation Request Error</span>
+                <span className="text-slate-600 mt-0.5">{errorMessage}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -442,13 +442,13 @@ export const App: React.FC = () => {
                   setParams(DEFAULT_PARAMS);
                   executeForecast(DEFAULT_PARAMS);
                 }}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition text-xs font-semibold"
+                className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl transition text-xs font-semibold shadow-sm"
               >
                 Reset Defaults
               </button>
               <button
                 onClick={() => executeForecast(params)}
-                className="flex items-center gap-1.5 font-semibold px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition shadow-md shadow-rose-600/30 text-xs"
+                className="flex items-center gap-1.5 font-semibold px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl transition shadow-md shadow-rose-600/20 text-xs"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Retry Request</span>
@@ -569,7 +569,7 @@ export const App: React.FC = () => {
         isMock={isMock}
       />
 
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-200 bg-white py-4 px-6 text-center text-xs text-slate-500">
         HydroVision — Problem Statement PS 1.2 • Gradient Club, Dept. of AIML, BMS College of Engineering
       </footer>
     </div>

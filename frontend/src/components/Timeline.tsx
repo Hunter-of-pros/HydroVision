@@ -47,7 +47,7 @@ export const Timeline: React.FC<TimelineProps> = ({
   }, [isPlaying, totalFrames, speedMultiplier, currentFrame, onSeek]);
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-3 text-slate-900">
       {/* Upper Timeline Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -63,22 +63,22 @@ export const Timeline: React.FC<TimelineProps> = ({
           {/* Reset */}
           <button
             onClick={() => onSeek(0)}
-            className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
+            className="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition"
             title="Reset to t=0"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
 
           {/* Speed Buttons */}
-          <div className="flex items-center bg-slate-800/80 rounded-xl p-1 border border-slate-800">
+          <div className="flex items-center bg-slate-100 rounded-xl p-1 border border-slate-200">
             {[1, 2, 5].map((spd) => (
               <button
                 key={spd}
                 onClick={() => onChangeSpeed(spd)}
                 className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition ${
                   speedMultiplier === spd
-                    ? 'bg-brand-500 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {spd}x
@@ -89,9 +89,9 @@ export const Timeline: React.FC<TimelineProps> = ({
 
         {/* Time Readout */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/60 border border-slate-800">
-            <Clock className="w-4 h-4 text-brand-400" />
-            <span className="font-mono text-sm font-bold text-white tracking-wide">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800">
+            <Clock className="w-4 h-4 text-brand-600" />
+            <span className="font-mono text-sm font-bold text-slate-900 tracking-wide">
               {formatTime(currentTimeS)}
             </span>
             <span className="text-xs text-slate-500 font-mono">
@@ -100,16 +100,16 @@ export const Timeline: React.FC<TimelineProps> = ({
           </div>
 
           {peakDepthM !== undefined && (
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/60 border border-slate-800 text-xs">
-              <span className="text-slate-400">Peak Depth:</span>
-              <span className="font-mono font-bold text-cyan-300">{peakDepthM.toFixed(2)} m</span>
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <span className="text-slate-500">Peak Depth:</span>
+              <span className="font-mono font-bold text-cyan-700">{peakDepthM.toFixed(2)} m</span>
             </div>
           )}
 
           {floodedAreaM2 !== undefined && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-800/60 border border-slate-800 text-xs">
-              <span className="text-slate-400">Flooded Extent:</span>
-              <span className="font-mono font-bold text-blue-300">
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+              <span className="text-slate-500">Flooded Extent:</span>
+              <span className="font-mono font-bold text-blue-700">
                 {(floodedAreaM2 / 10000).toFixed(1)} ha
               </span>
             </div>
@@ -125,12 +125,12 @@ export const Timeline: React.FC<TimelineProps> = ({
           max={Math.max(0, totalFrames - 1)}
           value={currentFrame}
           onChange={(e) => onSeek(Number(e.target.value))}
-          className="w-full h-2.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-brand-500"
+          className="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-brand-600"
         />
       </div>
 
       {/* Horizon Labels */}
-      <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+      <div className="flex justify-between text-[10px] text-slate-400 font-mono">
         <span>00:00:00 (Rain Begins)</span>
         <span>01:00:00 (+1h)</span>
         <span>02:00:00 (+2h Peak Runoff)</span>

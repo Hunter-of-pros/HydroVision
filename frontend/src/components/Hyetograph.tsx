@@ -20,20 +20,20 @@ export const Hyetograph: React.FC<HyetographProps> = ({
   const currentRain = rainSeriesMmhr[Math.min(currentFrame, rainSeriesMmhr.length - 1)] || 0;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl">
+    <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm text-slate-900">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-          <CloudRain className="w-3.5 h-3.5 text-cyan-400" />
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+          <CloudRain className="w-3.5 h-3.5 text-cyan-600" />
           Precipitation Profile (Hyetograph)
         </span>
         <div className="text-xs font-mono">
-          <span className="text-slate-400">Current Rate: </span>
-          <span className="text-cyan-300 font-bold">{currentRain.toFixed(1)} mm/h</span>
+          <span className="text-slate-500">Current Rate: </span>
+          <span className="text-cyan-700 font-bold">{currentRain.toFixed(1)} mm/h</span>
         </div>
       </div>
 
       {/* SVG Bar Chart with Playback Cursor */}
-      <div className="relative h-16 w-full bg-slate-950/60 rounded-xl p-1.5 border border-slate-800/80 overflow-hidden">
+      <div className="relative h-16 w-full bg-slate-50 rounded-xl p-1.5 border border-slate-200 overflow-hidden">
         <svg
           viewBox={`0 0 ${rainSeriesMmhr.length} 100`}
           preserveAspectRatio="none"
@@ -42,8 +42,8 @@ export const Hyetograph: React.FC<HyetographProps> = ({
           {/* Gradient definition */}
           <defs>
             <linearGradient id="rainGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#0369a1" stopOpacity="0.3" />
+              <stop offset="0%" stopColor="#0284c7" stopOpacity="0.85" />
+              <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.3" />
             </linearGradient>
           </defs>
 
@@ -78,7 +78,7 @@ export const Hyetograph: React.FC<HyetographProps> = ({
         </svg>
       </div>
 
-      <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+      <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-1">
         <span>0 min</span>
         <span>Peak: {maxRain.toFixed(0)} mm/h</span>
         <span>120 min</span>

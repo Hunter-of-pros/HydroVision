@@ -18,9 +18,9 @@ export const PointProbe: React.FC<PointProbeProps> = ({
 }) => {
   if (!selectedCell || !depthTimeseries || depthTimeseries.length === 0) {
     return (
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl flex items-center justify-between text-xs text-slate-400">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between text-xs text-slate-500">
         <div className="flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-cyan-400" />
+          <MapPin className="w-4 h-4 text-cyan-600" />
           <span>Click anywhere on the map to drop a probe pin and inspect localized flood hydrograph.</span>
         </div>
       </div>
@@ -35,20 +35,20 @@ export const PointProbe: React.FC<PointProbeProps> = ({
   const arrivalFrame = depthTimeseries.findIndex((d) => d >= 0.05);
 
   return (
-    <div className="bg-slate-900 border border-cyan-500/30 rounded-2xl p-4 shadow-xl flex flex-col gap-3 relative">
+    <div className="bg-white border border-cyan-300 rounded-2xl p-4 shadow-sm flex flex-col gap-3 relative text-slate-900">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+          <div className="p-1.5 rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-200">
             <MapPin className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-xs font-bold text-white flex items-center gap-2">
+            <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
               Probe Location: Cell [{selectedCell.row}, {selectedCell.col}]
-              <span className="text-[10px] text-slate-400 font-mono font-normal">
+              <span className="text-[10px] text-slate-500 font-mono font-normal">
                 (Elev: {selectedCell.elevation.toFixed(1)}m)
               </span>
             </div>
-            <div className="text-[10px] text-slate-400">
+            <div className="text-[10px] text-slate-500">
               Live hydrograph curve: Inundation evolution over the 2-hour storm
             </div>
           </div>
@@ -56,7 +56,7 @@ export const PointProbe: React.FC<PointProbeProps> = ({
 
         <button
           onClick={onClear}
-          className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+          className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition"
           title="Clear probe pin"
         >
           <X className="w-4 h-4" />
@@ -65,36 +65,36 @@ export const PointProbe: React.FC<PointProbeProps> = ({
 
       {/* Hydrograph Stats Badges */}
       <div className="grid grid-cols-3 gap-2">
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5">
-          <div className="text-[10px] text-slate-400">Current Depth</div>
-          <div className={`text-base font-bold font-mono ${currentDepth >= 0.05 ? 'text-cyan-300' : 'text-slate-300'}`}>
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+          <div className="text-[10px] text-slate-500">Current Depth</div>
+          <div className={`text-base font-bold font-mono ${currentDepth >= 0.05 ? 'text-cyan-700' : 'text-slate-700'}`}>
             {currentDepth.toFixed(3)} m
           </div>
         </div>
 
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5">
-          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3 text-brand-400" /> Peak Depth
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+          <div className="text-[10px] text-slate-500 flex items-center gap-1">
+            <TrendingUp className="w-3 h-3 text-brand-600" /> Peak Depth
           </div>
-          <div className="text-base font-bold font-mono text-white">
+          <div className="text-base font-bold font-mono text-slate-900">
             {peakDepth.toFixed(3)} m
           </div>
-          <div className="text-[9px] text-slate-500 font-mono">at +{peakFrame}m</div>
+          <div className="text-[9px] text-slate-400 font-mono">at +{peakFrame}m</div>
         </div>
 
-        <div className="bg-slate-800/40 border border-slate-800 rounded-xl p-2.5">
-          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3 text-amber-400" /> Inundation Arrival
+        <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+          <div className="text-[10px] text-slate-500 flex items-center gap-1">
+            <AlertTriangle className="w-3 h-3 text-amber-600" /> Inundation Arrival
           </div>
-          <div className="text-base font-bold font-mono text-amber-300">
+          <div className="text-base font-bold font-mono text-amber-700">
             {arrivalFrame >= 0 ? `+${arrivalFrame} min` : 'None (Dry)'}
           </div>
-          <div className="text-[9px] text-slate-500 font-mono">threshold 5cm</div>
+          <div className="text-[9px] text-slate-400 font-mono">threshold 5cm</div>
         </div>
       </div>
 
       {/* SVG Hydrograph Curve */}
-      <div className="relative h-20 w-full bg-slate-950/80 rounded-xl p-2 border border-slate-800 overflow-hidden">
+      <div className="relative h-20 w-full bg-slate-50 rounded-xl p-2 border border-slate-200 overflow-hidden">
         <svg
           viewBox={`0 0 ${depthTimeseries.length} 100`}
           preserveAspectRatio="none"
@@ -102,8 +102,8 @@ export const PointProbe: React.FC<PointProbeProps> = ({
         >
           <defs>
             <linearGradient id="hydrographGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#0891b2" stopOpacity="0.1" />
+              <stop offset="0%" stopColor="#0891b2" stopOpacity="0.7" />
+              <stop offset="100%" stopColor="#06b6d4" stopOpacity="0.1" />
             </linearGradient>
           </defs>
 
@@ -119,7 +119,7 @@ export const PointProbe: React.FC<PointProbeProps> = ({
           <polyline
             points={depthTimeseries.map((d, i) => `${i},${100 - (d / peakDepth) * 85}`).join(' ')}
             fill="none"
-            stroke="#22d3ee"
+            stroke="#0891b2"
             strokeWidth={1.8}
             strokeLinecap="round"
           />
@@ -150,9 +150,9 @@ export const PointProbe: React.FC<PointProbeProps> = ({
         </svg>
       </div>
 
-      <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+      <div className="flex justify-between text-[10px] text-slate-400 font-mono">
         <span>0 min</span>
-        <span>Water Depth Hydrograph $h(t)$</span>
+        <span>Water Depth Hydrograph h(t)</span>
         <span>120 min</span>
       </div>
     </div>
