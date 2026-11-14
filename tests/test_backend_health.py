@@ -85,6 +85,9 @@ def test_forecast_endpoint_mock_execution():
     assert data["peak_depth_m"] >= 0.0
     assert data["frame_stride"] == 30
     assert data["model_name"] == "mock-v0"
+    assert "volume_m3_series" in data
+    assert len(data["volume_m3_series"]) == 5
+    assert "mass_residual_series" in data
 
 
 def test_compare_endpoint_mock_execution():
@@ -104,5 +107,8 @@ def test_compare_endpoint_mock_execution():
     assert "metrics" in data
     assert "speedup" in data["metrics"]
     assert "wet_iou" in data["metrics"]
+    assert "mae_series" in data["metrics"]
+    assert "mass_residual_series" in data["metrics"]
+    assert "peak_extent_iou" in data["metrics"]
     assert data["model_name"] == "mock-v0"
 

@@ -121,6 +121,15 @@ def forecast(params: Dict[str, Any]) -> Dict[str, Any]:
     if stride > 1:
         result["times_s"] = result["times_s"][::stride]
         result["depth_frames"] = result["depth_frames"][::stride]
+        for key in [
+            "volume_m3_series",
+            "cum_rain_m3_series",
+            "cum_drain_m3_series",
+            "cum_outflow_m3_series",
+            "mass_residual_series",
+        ]:
+            if key in result and isinstance(result[key], list):
+                result[key] = result[key][::stride]
         result["frame_stride"] = stride
     else:
         result["frame_stride"] = 1
@@ -145,10 +154,28 @@ def compare(params: Dict[str, Any]) -> Dict[str, Any]:
     if stride > 1:
         surr_res["times_s"] = surr_res["times_s"][::stride]
         surr_res["depth_frames"] = surr_res["depth_frames"][::stride]
-        surr_res["frame_stride"] = stride
-
         solv_res["times_s"] = solv_res["times_s"][::stride]
         solv_res["depth_frames"] = solv_res["depth_frames"][::stride]
+        for key in [
+            "volume_m3_series",
+            "cum_rain_m3_series",
+            "cum_drain_m3_series",
+            "cum_outflow_m3_series",
+            "mass_residual_series",
+        ]:
+            if key in surr_res and isinstance(surr_res[key], list):
+                surr_res[key] = surr_res[key][::stride]
+            if key in solv_res and isinstance(solv_res[key], list):
+                solv_res[key] = solv_res[key][::stride]
+
+        if "mae_series" in metrics and isinstance(metrics["mae_series"], list):
+            metrics["mae_series"] = metrics["mae_series"][::stride]
+        if "mass_residual_series" in metrics and isinstance(metrics["mass_residual_series"], list):
+            metrics["mass_residual_series"] = metrics["mass_residual_series"][::stride]
+        if "solver_mass_residual_series" in metrics and isinstance(metrics["solver_mass_residual_series"], list):
+            metrics["solver_mass_residual_series"] = metrics["solver_mass_residual_series"][::stride]
+
+        surr_res["frame_stride"] = stride
         solv_res["frame_stride"] = stride
     else:
         surr_res["frame_stride"] = 1

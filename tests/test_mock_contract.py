@@ -121,3 +121,75 @@ def test_mock_model_info():
     assert info["model_name"] == "mock-v0"
     assert info["contract_version"] == "1.0"
 
+
+def test_mock_conservation_series_shapes_and_residuals():
+    params = {
+        "rain_intensity_mmhr": 80.0,
+        "rain_duration_min": 45.0,
+        "rain_shape": "constant",
+        "drain_capacity_mmhr": 0.0,
+        "horizon_steps": 120,
+    }
+    result = mock.forecast(params)
+
+    # 1. Shapes of all new series on forecast are 121 long
+    for key in [
+        "volume_m3_series",
+        "cum_rain_m3_series",
+        "cum_drain_m3_series",
+        "cum_outflow_m3_series",
+        "mass_residual_series",
+    ]:
+        assert key in result, f"Missing key '{key}' in forecast output"
+        assert len(result[key]) == 121, f"Key '{key}' expected length 121, got {len(result[key])}"
+        assert all(math.isfinite(v) for v in result[key]), f"Key '{key}' contains non-finite values"
+
+    # 2. Residual is finite and >= 0
+    residuals = result["mass_residual_series"]
+    assert residuals[0] == 0.0, "Frame 0 residual must be 0.0"
+    assert all(r >= 0.0 for r in residuals), "Mass residuals must be non-negative"
+
+    # 3. Solver conservation check (mock solver residual strictly below 1e-6)
+    solver_params = {
+        "rain_intensity_mmhr": 80.0,
+        "rain_duration_min": 45.0,
+        "horizon_steps": 120,
+    }
+    solv_res = mock.run_solver(solver_params)
+    for key in [
+        "volume_m3_series",
+        "cum_rain_m3_series",
+        "cum_drain_m3_series",
+        "cum_outflow_m3_series",
+        "mass_residual_series",
+    ]:
+        assert key in solv_res
+        assert len(solv_res[key]) == 121
+
+    solv_residuals = solv_res["mass_residual_series"]
+    assert all(math.isfinite(r) and r >= 0.0 for r in solv_residuals)
+    max_solv_residual = max(solv_residuals)
+    assert max_solv_residual < 1e-6, f"Mock solver residual {max_solv_residual} must be below 1e-6"
+
+    # 4. Compare metrics contain new v1.1 fields
+    metrics = mock.compute_metrics(
+        result["depth_frames"],
+        solv_res["depth_frames"],
+        params=params,
+    )
+    assert "mae_series" in metrics
+    assert len(metrics["mae_series"]) == 121
+    assert all(math.isfinite(v) and v >= 0.0 for v in metrics["mae_series"])
+
+    assert "mass_residual_series" in metrics
+    assert len(metrics["mass_residual_series"]) == 121
+    assert all(math.isfinite(v) and v >= 0.0 for v in metrics["mass_residual_series"])
+
+    assert "solver_mass_residual_series" in metrics
+    assert len(metrics["solver_mass_residual_series"]) == 121
+    assert max(metrics["solver_mass_residual_series"]) < 1e-6
+
+    assert "peak_extent_iou" in metrics
+    assert 0.0 <= metrics["peak_extent_iou"] <= 1.0
+
+

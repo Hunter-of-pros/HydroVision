@@ -79,6 +79,12 @@ export interface ForecastResult {
   inference_time_ms: number;
   model_name: string;
   frame_stride: number;
+  // Additive Contract v1.1 fields
+  volume_m3_series?: number[];
+  cum_rain_m3_series?: number[];
+  cum_drain_m3_series?: number[];
+  cum_outflow_m3_series?: number[];
+  mass_residual_series?: number[];
 }
 
 export interface SolverResult {
@@ -89,6 +95,12 @@ export interface SolverResult {
   solve_time_s: number;
   solver_name: string;
   frame_stride: number;
+  // Additive Contract v1.1 fields
+  volume_m3_series?: number[];
+  cum_rain_m3_series?: number[];
+  cum_drain_m3_series?: number[];
+  cum_outflow_m3_series?: number[];
+  mass_residual_series?: number[];
 }
 
 export interface ComparisonMetrics {
@@ -99,7 +111,13 @@ export interface ComparisonMetrics {
   mass_error: number;
   arrival_time_error_s: number;
   speedup: number;
+  // Additive Contract v1.1 fields
+  mae_series?: number[];
+  mass_residual_series?: number[];
+  solver_mass_residual_series?: number[];
+  peak_extent_iou?: number;
 }
+
 
 export interface CompareResult {
   surrogate: ForecastResult;

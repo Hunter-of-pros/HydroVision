@@ -119,6 +119,21 @@ class ForecastResponse(BaseModel):
     inference_time_ms: float = Field(..., description="Surrogate inference latency in milliseconds.")
     model_name: str = Field(..., description="Model identifier used to produce forecast.")
     frame_stride: int = Field(1, description="Stride applied to returned frames.")
+    volume_m3_series: Optional[List[float]] = Field(
+        None, description="Domain total water volume in m3 per frame (sum(h) * dx * dy)."
+    )
+    cum_rain_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative precipitation volume in m3."
+    )
+    cum_drain_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative drainage volume in m3."
+    )
+    cum_outflow_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative boundary outflow volume in m3."
+    )
+    mass_residual_series: Optional[List[float]] = Field(
+        None, description="Normalized mass conservation residual series over time."
+    )
 
 
 class SolverResponse(BaseModel):
@@ -131,6 +146,21 @@ class SolverResponse(BaseModel):
     solve_time_s: float
     solver_name: str
     frame_stride: int = 1
+    volume_m3_series: Optional[List[float]] = Field(
+        None, description="Domain total water volume in m3 per frame."
+    )
+    cum_rain_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative precipitation volume in m3."
+    )
+    cum_drain_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative drainage volume in m3."
+    )
+    cum_outflow_m3_series: Optional[List[float]] = Field(
+        None, description="Cumulative boundary outflow volume in m3."
+    )
+    mass_residual_series: Optional[List[float]] = Field(
+        None, description="Normalized mass conservation residual series over time."
+    )
 
 
 class MetricsResponse(BaseModel):
@@ -146,6 +176,19 @@ class MetricsResponse(BaseModel):
         description="Discrepancy in wetting front arrival time in seconds.",
     )
     speedup: float = Field(..., description="Speedup factor (solver_time / surrogate_time).")
+    mae_series: Optional[List[float]] = Field(
+        None, description="Per-frame Mean Absolute Error in meters."
+    )
+    mass_residual_series: Optional[List[float]] = Field(
+        None, description="Mass balance residual series for surrogate."
+    )
+    solver_mass_residual_series: Optional[List[float]] = Field(
+        None, description="Mass balance residual series for solver."
+    )
+    peak_extent_iou: Optional[float] = Field(
+        None, description="Inundation IoU across all cells ever wet during rollout (h >= 0.05m)."
+    )
+
 
 
 class CompareRequest(ForecastRequest):
