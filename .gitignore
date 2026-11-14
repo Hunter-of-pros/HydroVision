@@ -23,6 +23,10 @@ dist/
 .DS_Store
 
 # Artifacts & Heavy Data (Keep .gitkeep)
+*.tif
+*.tiff
+*.tar.gz
+*.gz
 artifacts/models/*.pt
 artifacts/models/*.pth
 artifacts/models/*.onnx
