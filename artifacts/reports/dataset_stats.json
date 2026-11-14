@@ -1,0 +1,34 @@
+{
+  "verified_at": "2026-11-14T16:32:39.684412+00:00",
+  "terrain_hash": "d63ba5b03e5806482cdcf6b2abf6ee6d027576c5892efad13ca810e6b6500567",
+  "terrain_hash_matches_current": true,
+  "total_scenarios": 430,
+  "nan_count": 0,
+  "depth_min_m": 0.0,
+  "depth_max_m": 3.677734375,
+  "wet_fraction_0_05m": 0.0933,
+  "mass_balance": {
+    "checked_samples_count": 20,
+    "max_relative_error": 0.00017823700377429181,
+    "mean_relative_error": 2.7221592566590467e-05,
+    "status": "PASS"
+  },
+  "splits": {
+    "train": {
+      "num_samples": 280,
+      "checked_samples": 5
+    },
+    "val": {
+      "num_samples": 60,
+      "checked_samples": 5
+    },
+    "test": {
+      "num_samples": 60,
+      "checked_samples": 5
+    },
+    "extrapolation": {
+      "num_samples": 30,
+      "checked_samples": 5
+    }
+  }
+}

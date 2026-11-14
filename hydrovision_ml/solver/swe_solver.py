@@ -82,6 +82,7 @@ def run_solver_core(
     depth_frames = np.zeros((num_frames, rows, cols), dtype=np.float32)
     max_velocity_frames = np.zeros((num_frames, rows, cols), dtype=np.float32)
     times_s = [int(step * dt_s) for step in range(num_frames)]
+    cum_drain_m3_series = np.zeros(num_frames, dtype=np.float64)
 
     # Frame 0 is dry initial state
     depth_frames[0] = h.astype(np.float32)
@@ -101,6 +102,7 @@ def run_solver_core(
     z_s = dem[1:, :]
     z_max_y = np.maximum(z_n, z_s)
 
+    cum_drain_m3 = 0.0
     for step_idx in range(total_steps):
         r_rate = rain_rates_mps[step_idx]
         elapsed_macro = 0.0
@@ -179,12 +181,14 @@ def run_solver_core(
             # Sink term: Drainage / Infiltration (bounded by water available)
             h_inter = np.maximum(0.0, h + dh_flow + dh_rain)
             dh_drain = np.minimum(h_inter, dt_sub * drain_rate_mps)
+            cum_drain_m3 += float(np.sum(dh_drain)) * (dx * dx)
 
             # Final depth update enforcing non-negativity
             h = np.maximum(0.0, h_inter - dh_drain)
 
             elapsed_macro += dt_sub
 
+        cum_drain_m3_series[step_idx + 1] = cum_drain_m3
         # Record macro frame
         depth_frames[step_idx + 1] = np.round(h, 4).astype(np.float32)
 
@@ -211,4 +215,5 @@ def run_solver_core(
         "times_s": times_s,
         "max_velocity_frames": max_velocity_frames,
         "solve_time_s": max(0.001, solve_time_s),
+        "cum_drain_m3_series": cum_drain_m3_series,
     }
