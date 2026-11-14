@@ -4,15 +4,15 @@
   "rewrites": [
     {
       "source": "/(health|config|terrain|presets|forecast|compare|results)",
-      "destination": "/api/index.py"
+      "destination": "/api/index.py?__path=/$1"
     },
     {
       "source": "/weather/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/index.py?__path=/weather/$1"
     },
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.py"
+      "destination": "/api/index.py?__path=/$1"
     },
     {
       "source": "/((?!assets/|basemap_|.*\\..*).*)",

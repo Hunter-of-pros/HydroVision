@@ -48,7 +48,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # Enable GZip compression for high-dimensional depth frame payloads
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Allow Cross-Origin Resource Sharing (CORS) from Vite development server
+# Allow Cross-Origin Resource Sharing (CORS) from Vite development server & production Vercel
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -57,6 +57,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

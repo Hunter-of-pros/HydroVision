@@ -57,3 +57,4 @@ artifacts/reports/*.pdf
 !artifacts/reports/baseline_rollout_error.png
 !artifacts/reports/baseline_persistence_comparison.png
 
+.vercel
