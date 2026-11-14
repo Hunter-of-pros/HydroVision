@@ -3,16 +3,29 @@
 Exports public API functions defined in CONTRACT.md.
 """
 
-from hydrovision_ml.api import (
-    compute_metrics,
-    forecast,
-    forecast_batch,
-    get_config,
-    get_model_info,
-    get_terrain,
-    load_all,
-    run_solver,
-)
+try:
+    from hydrovision_ml.api import (
+        compute_metrics,
+        forecast,
+        forecast_batch,
+        get_config,
+        get_model_info,
+        get_terrain,
+        load_all,
+        run_solver,
+    )
+except ImportError:
+    # Serverless runtime fallback when PyTorch is not installed (e.g. Vercel 250MB limit)
+    from hydrovision_ml.mock import (
+        compute_metrics,
+        forecast,
+        forecast_batch,
+        get_config,
+        get_model_info,
+        get_terrain,
+        load_all,
+        run_solver,
+    )
 
 __version__ = "1.0.0"
 __all__ = [

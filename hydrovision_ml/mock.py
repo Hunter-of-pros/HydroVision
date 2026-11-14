@@ -389,6 +389,16 @@ def compute_metrics(
     }
 
 
+def forecast_batch(params_list: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Execute batched deterministic simulation across multiple rainfall scenarios."""
+    results = [forecast(p) for p in params_list]
+    return {
+        "results": results,
+        "batch_size": len(results),
+        "total_inference_time_ms": sum(r.get("inference_time_ms", 0.0) for r in results),
+    }
+
+
 def get_model_info() -> Dict[str, Any]:
     """Return model runtime metadata."""
     return {
