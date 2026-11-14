@@ -4,10 +4,12 @@ Phase: Quality & Contract Assurance
 Owner: Backend (Vikas)
 """
 
+from pathlib import Path
 from fastapi.testclient import TestClient
 import pytest
 
 from backend.app import app
+from backend import services
 
 client = TestClient(app)
 
@@ -27,16 +29,26 @@ def test_health_endpoint_real_mode(monkeypatch):
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
-    # In real mode when model weights are not yet trained/loaded:
-    assert data["status"] == "degraded"
-    assert data["model_loaded"] is False
     assert data["is_mock"] is False
     assert data["contract_version"] == "1.0"
+    # When weights exist (artifacts/models/best.pt), model is loaded:
+    if Path("artifacts/models/best.pt").exists():
+        assert data["status"] == "ok"
+        assert data["model_loaded"] is True
+    else:
+        assert data["status"] == "degraded"
+        assert data["model_loaded"] is False
 
 
 def test_forecast_real_mode_unloaded_model_returns_503(monkeypatch):
-    """Verify /forecast returns 503 Service Unavailable when HYDRO_MODE=real but model is not loaded."""
+    """Verify /forecast returns 503 Service Unavailable when HYDRO_MODE=real and model is not loaded."""
     monkeypatch.setenv("HYDRO_MODE", "real")
+    # Simulate unloaded model state
+    monkeypatch.setattr(
+        services,
+        "get_health",
+        lambda: {"status": "degraded", "model_loaded": False, "is_mock": False, "contract_version": "1.0"},
+    )
     response = client.post(
         "/forecast",
         json={
