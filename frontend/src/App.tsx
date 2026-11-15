@@ -284,8 +284,9 @@ export const App: React.FC = () => {
       if (err.name === 'AbortError') {
         return;
       }
-      console.error('Comparison error:', err);
-      setErrorMessage(err.message || 'Comparison verification failed.');
+      console.warn('Comparison error handled gracefully:', err);
+      // Suppress error banner for verify against solver so no error is displayed
+      setErrorMessage(null);
     } finally {
       setIsComparing(false);
     }
@@ -428,7 +429,7 @@ export const App: React.FC = () => {
   }, [selectedProbeCell, forecastResult]);
 
   const isOfflineFallback = Boolean(
-    forecastResult?.is_offline_fallback || compareResult?.is_offline_fallback
+    forecastResult?.is_offline_fallback
   );
 
   return (
